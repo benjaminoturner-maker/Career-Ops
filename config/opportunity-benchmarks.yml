@@ -1,0 +1,53 @@
+benchmarks:
+  - id: industrial-corporate-development-technical-growth
+    name: "Industrial Corporate Development & Technical Growth"
+    source_role:
+      company: "Americhem"
+      title: "Manager, Corporate Development - Remote Eligible"
+      authoritative_source: "Americhem ADP board"
+      discovery_source: "LinkedIn"
+      evaluated_on: "2026-07-29"
+      score: 4.2
+      expected_tier: "Tier 2"
+    reusable_pattern:
+      candidate_feeder_backgrounds:
+        - "engineering"
+        - "business development"
+        - "product management"
+        - "strategy"
+        - "consulting"
+        - "operations"
+        - "related industrial sectors"
+      responsibilities:
+        - "acquisition-target identification and pipeline development"
+        - "strategic-fit assessment"
+        - "technology, product, customer, and market evaluation"
+        - "owner outreach and relationship development"
+        - "company profiles and business cases"
+        - "cross-functional diligence"
+        - "executive recommendations"
+        - "active transaction support and integration planning"
+      formal_m_and_a_treatment: "Beneficial rather than mandatory"
+    candidate_evidence:
+      - "BS in Chemical Engineering and MBA"
+      - "Ten years of progressive specialty-chemicals experience at TIORCO"
+      - "Laboratory, polymer-gel, chemical-flood, consulting, project, commercial, and operations experience"
+      - "TIORCO integration exposure through Nalco"
+      - "EcoVapor technical commercialization and business-case development"
+      - "Edge Energy acquisition and divestiture evaluation, economics, diligence, negotiations, data rooms, and executive recommendations"
+      - "Experience learning complex technologies and markets"
+      - "Cross-functional and owner/executive relationship experience"
+    material_gaps:
+      - "No direct plastics or masterbatch experience"
+      - "No conventional investment-banking background"
+      - "Limited formal company-level M&A execution"
+      - "No established polymers-sector target network"
+    expected_regression:
+      discover: true
+      retain_for_evaluation: true
+      tiorco_qualifies_as_related_specialty_chemicals: true
+      manager_title_is_not_rejected: true
+      investment_banking_is_not_required: true
+      undisclosed_compensation_is_investigate: true
+      remote_eligibility_is_investigate: true
+      expected_classification: "High-priority Tier 2"
