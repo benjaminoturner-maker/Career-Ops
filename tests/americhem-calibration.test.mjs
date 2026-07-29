@@ -32,20 +32,16 @@ test('Americhem pattern is covered by the configured short discovery probes', ()
   const queries = portals.search_queries.filter(
     (entry) => entry.name.startsWith('Industrial Corporate Development & Technical Growth —'),
   );
-  assert.equal(queries.length, 10);
+  assert.equal(queries.length, 6);
   assert.equal(queries.every((entry) => entry.enabled === true), true);
   const combined = queries.map((entry) => entry.query).join(' ');
   assert.match(combined, /Manager Corporate Development/);
   assert.match(combined, /acquisition targets/);
   assert.match(combined, /M&A pipeline/);
-  assert.match(combined, /inorganic growth/i);
   assert.match(combined, /Strategy and M&A/);
-  assert.match(combined, /External Growth/);
-  assert.match(combined, /strategic fit/);
-  assert.match(combined, /business case/);
-  assert.match(combined, /due diligence/);
-  assert.match(combined, /integration planning/);
-  assert.match(combined, /technology evaluation/);
+  assert.match(combined, /technology acquisition/);
+  assert.match(combined, /technical due diligence/);
+  assert.match(combined, /technology scouting/);
   assert.match(combined, /deal origination/);
   assert.doesNotMatch(combined, /"United States"|\bUSA\b|\bU\.S\./);
   assert.equal(queries.every((entry) => entry.query.length < 150), true);
