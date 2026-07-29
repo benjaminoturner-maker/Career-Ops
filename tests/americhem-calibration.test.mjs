@@ -28,14 +28,20 @@ const americhem = {
   ].join(' '),
 };
 
-test('Americhem pattern is discoverable by the configured focused query', () => {
-  const query = portals.search_queries.find(
-    (entry) => entry.name === 'Industrial Corporate Development & Technical Growth',
+test('Americhem pattern is covered by the configured focused query families', () => {
+  const queries = portals.search_queries.filter(
+    (entry) => entry.name.startsWith('Industrial Corporate Development & Technical Growth —'),
   );
-  assert.equal(query?.enabled, true);
-  assert.match(query.query, /Manager Corporate Development/);
-  assert.match(query.query, /specialty chemicals/);
-  assert.match(query.query, /remote eligible/);
+  assert.equal(queries.length, 3);
+  assert.equal(queries.every((entry) => entry.enabled === true), true);
+  const combined = queries.map((entry) => entry.query).join(' ');
+  assert.match(combined, /Manager Corporate Development/);
+  assert.match(combined, /specialty chemicals/);
+  assert.match(combined, /acquisition targets/);
+  assert.match(combined, /M&A pipeline/);
+  assert.match(combined, /inorganic growth/i);
+  assert.match(combined, /Strategy and M&A/);
+  assert.match(combined, /External Growth/);
 });
 
 test('Americhem pattern survives the scanner title, location, and content filters', () => {
