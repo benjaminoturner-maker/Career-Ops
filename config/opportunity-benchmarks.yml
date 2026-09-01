@@ -51,3 +51,72 @@ benchmarks:
       undisclosed_compensation_is_investigate: true
       remote_eligibility_is_investigate: true
       expected_classification: "High-priority Tier 2"
+
+  - id: interview-credibility-high-growth-saas-bizops
+    name: "High-growth SaaS BizOps specialist gate"
+    scenario:
+      functional_fit: "Strong analogous executive planning, KPI, resource-allocation, and operating experience"
+      domain_requirement: "10-12+ years specifically in high-growth SaaS BizOps, corporate strategy, or Chief of Staff work"
+      hiring_intent: "Career SaaS operating specialist"
+      bridge: "No posting evidence that cross-industry operators are welcomed"
+    requirement_strength: "hard gate"
+    candidate_pool_disadvantage: "Obvious candidates have both the same operating capabilities and direct high-growth SaaS pedigree"
+    why_ben: null
+    expected_regression:
+      expected_tier: "Reject"
+      generic_transferability_is_insufficient: true
+
+  - id: interview-credibility-manufacturing-strategy
+    name: "Manufacturing-network strategy specialist"
+    scenario:
+      functional_fit: "Engineering, economics, M&A diligence, and operations overlap"
+      domain_requirement: "Make-vs-buy, plant footprint, sourcing and procurement synergy, and factory-network strategy"
+      hiring_intent: "Manufacturing-strategy specialist"
+      bridge: "No deep manufacturing-network strategy track record"
+    requirement_strength: "strong preference"
+    candidate_pool_disadvantage: "Manufacturing strategy candidates offer both functional and direct plant-network experience"
+    why_ben: null
+    expected_regression:
+      expected_tier: "Tier 3 or Reject"
+      cannot_be_tier_1_or_2_from_functional_overlap_alone: true
+
+  - id: interview-credibility-pe-backed-generalist-operator
+    name: "PE-backed transformation and generalist operator"
+    scenario:
+      functional_fit: "Broad strategy, finance, operations, organizational infrastructure, and board-facing leadership"
+      domain_requirement: "End market unfamiliar, but feeder backgrounds explicitly include business operations, finance, consulting, PE portfolio operations, and multi-site or field operations"
+      hiring_intent: "Generalist transformation operator"
+      bridge: "Ben's lean-company operating breadth, field-operations context, value creation, and owner/board communication directly match the operator type sought"
+    requirement_strength: "soft preference"
+    candidate_pool_disadvantage: "Limited because the employer explicitly values cross-functional operator backgrounds"
+    why_ben: "Energy operator with unusually broad technical, financial, administrative, transaction, and board-facing scope"
+    expected_regression:
+      expected_tier: "Tier 1 or Tier 2"
+      unfamiliar_end_market_is_not_automatic_rejection: true
+
+  - id: interview-credibility-adjacent-energy
+    name: "Adjacent energy asset leadership"
+    scenario:
+      functional_fit: "Energy asset economics, development planning, capital allocation, and technical-commercial leadership"
+      domain_requirement: "Geothermal, carbon management, or adjacent energy infrastructure"
+      hiring_intent: "Adjacent-domain energy decision maker"
+      bridge: "Subsurface judgment, asset evaluation, operating experience, and capital allocation are directly useful"
+    requirement_strength: "soft preference"
+    candidate_pool_disadvantage: "Manageable when direct technology-specific gates are absent"
+    why_ben: "Combines reservoir credibility with economics, A&D, operations, commercialization, and executive decision support"
+    expected_regression:
+      expected_tier: "Tier 1 or Tier 2"
+
+  - id: interview-credibility-pure-specialist
+    name: "Pure unfamiliar specialist"
+    scenario:
+      functional_fit: "Some adjacent leadership responsibilities"
+      domain_requirement: "Deep direct expertise Ben has never practiced and must exercise from day one"
+      hiring_intent: "Career specialist"
+      bridge: "None"
+    requirement_strength: "hard gate"
+    candidate_pool_disadvantage: "Decisive"
+    why_ben: null
+    expected_regression:
+      expected_tier: "Reject"
+      attractive_title_or_comp_does_not_override_gate: true
