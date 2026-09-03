@@ -13,6 +13,10 @@ data/portal-health.tsv
 data/blacklist.md
 data/pdf-index.tsv
 data/agent-inbox.md
+data/handoff-inbox/*
+!data/handoff-inbox/.gitkeep
+data/handoff-runtime/*
+!data/handoff-runtime/.gitkeep
 data/active-interviews.md
 data/reply-candidates.json
 data/parser-output/**/*.json

@@ -1,0 +1,25 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
+import yaml from 'js-yaml';
+import { runOnce } from '../handoff-runner.mjs';
+
+function setup() {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-runner-'));
+  mkdirSync(join(root, 'data/handoff-inbox'), { recursive: true }); mkdirSync(join(root, 'reports'), { recursive: true });
+  writeFileSync(join(root, 'cv.md'), '# CV\n\nLed acquisition evaluation and executive recommendations.\n');
+  writeFileSync(join(root, 'data/applications.md'), '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|---|---|---|---|---|---|---|---|\n');
+  return root;
+}
+function payload() { return { handoff_id:'test-handoff-001', schema_version:1, source:{evaluator:'ChatGPT',evaluated_at:'2026-09-02',authoritative_posting_verified:true}, job:{company:'Example Industrial Co.',title:'Director, Corporate Development',url:'https://jobs.example.com/job/123',requisition_id:'123',location:'Denver',work_arrangement:'Hybrid',posting_status:'live',jd_text:'Director, Corporate Development. Example Industrial Co. seeks an executive to identify acquisitions, assess strategic fit, and coordinate cross-functional diligence. Candidates must lead technical diligence with operating teams. The position presents recommendations to executives.'}, evaluation:{tier:'Tier 2',score:4.1,recommended_action:'Apply',archetype:'Industrial Corporate Development',specialist_or_generalist:'Generalist with industrial transaction judgment',candidate_pool_disadvantage:'Career corporate-development candidates have more repetitions.',why_ben:'The role values technical operating judgment Ben can evidence.',role_specific_bridge_evidence:'The posting requires technical diligence with operating teams.',material_requirements_complete:true,candidate_claims_complete:true,requirements:[{requirement:'Lead technical diligence',strength:'strong preference',status:'met',evidence:'Candidates must lead technical diligence with operating teams.',classification_rationale:'Adjacent operating evidence is accepted.'}],strongest_fit:['Acquisition evaluation and executive recommendations'],material_concerns:[],positioning_strategy:'Lead with technical-commercial evaluation.',likely_questions:[]},candidate_claims:[{claim:'Ben has led acquisition evaluation and executive recommendations.',source:'cv.md',evidence:'Led acquisition evaluation and executive recommendations.'}],requested_actions:{create_report:true,update_tracker:true,tracker_status:'Evaluated'} }; }
+function put(root, value) { writeFileSync(join(root,'data/handoff-inbox/test.yml'), yaml.dump(value)); }
+function clean(root) { rmSync(root,{recursive:true,force:true}); }
+
+test('valid first run imports and verifies; repeat is a no-op', async () => { const r=setup(); try { put(r,payload()); const a=await runOnce({rootDir:r,verifyFn:()=>({ok:true})}); assert.equal(a.status,'completed'); const b=await runOnce({rootDir:r,verifyFn:()=>({ok:true})}); assert.equal(b.no_op,true); assert.match(readFileSync(join(r,'data/applications.md'),'utf8'),/Example Industrial/); } finally {clean(r);} });
+test('malformed and failed dry-run stop without persistence', async () => { const r=setup(); try { put(r,{handoff_id:'bad'}); const a=await runOnce({rootDir:r}); assert.equal(a.status,'failed_dry_run'); assert.doesNotMatch(readFileSync(join(r,'data/applications.md'),'utf8'),/Example/); } finally {clean(r);} });
+test('application-history conflict stops without adding a row', async () => { const r=setup(); try { const p=payload(); writeFileSync(join(r,'data/applications.md'), '# Applications Tracker\n\n| # | Date | Company | Role | Score | Status | PDF | Report | Notes |\n|---|---|---|---|---|---|---|---|---|\n| 1 | 2026-01-01 | Example Industrial Co. | Director, Corporate Development | 4.0/5 | Applied | - | - | Job ID: 123 |\n'); put(r,p); const a=await runOnce({rootDir:r}); assert.equal(a.status,'failed_dry_run'); } finally {clean(r);} });
+test('partial imported state resumes at verification without re-import', async () => { const r=setup(); try { put(r,payload()); let n=0; const fail=await runOnce({rootDir:r,verifyFn:()=>{n++; throw new Error('verification failed');}}); assert.equal(fail.status,'verify_failed'); const again=await runOnce({rootDir:r,verifyFn:()=>{n++; return {ok:true};}}); assert.equal(again.status,'completed'); assert.equal(n,2); } finally {clean(r);} });
+test('verify failure records partial state', async () => { const r=setup(); try { put(r,payload()); const a=await runOnce({rootDir:r,verifyFn:()=>{throw new Error('bad pipeline');}}); assert.equal(a.status,'verify_failed'); assert.match(a.error,/bad pipeline/); } finally {clean(r);} });
+test('concurrent scheduler execution returns busy', async () => { const r=setup(); try { mkdirSync(join(r,'data/handoff-runtime'),{recursive:true}); mkdirSync(join(r,'data/handoff-runtime/runner.lock')); const a=await runOnce({rootDir:r}); assert.equal(a.status,'busy'); } finally {clean(r);} });

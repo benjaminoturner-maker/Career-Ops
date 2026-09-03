@@ -395,6 +395,19 @@ export async function importHandoff(payload, options = {}) {
   };
 }
 
+// Shared preflight used by unattended runners. This deliberately mirrors the
+// CLI dry-run path so callers do not duplicate history or validation logic.
+export function dryRunHandoff(payload, options = {}) {
+  const validated = validateHandoff(payload, options);
+  const history = loadApplicationHistory(resolveTrackerPath(validated.rootDir));
+  const prior = matchPriorApplication({
+    company: payload.job.company, title: payload.job.title, url: payload.job.url,
+    requisitionId: validated.requisitionId, description: payload.job.jd_text,
+  }, history);
+  if (prior.kind !== 'none') throw new HandoffValidationError([priorApplicationMessage(prior)]);
+  return { ...validated, prior };
+}
+
 function parseArgs(argv) {
   const args = { dryRun: false };
   for (let i = 0; i < argv.length; i++) {
