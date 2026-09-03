@@ -41,9 +41,10 @@ import { buildTrustValidator } from './providers/_trust-validator.mjs';
 import { loadProviders, resolveProvider } from './providers/_registry.mjs';
 import { mergeProviderPlugins } from './plugins/_engine.mjs';
 import { classifyFetchError } from './verify-portals.mjs';
-import { fingerprintText, findCrossListings } from './fingerprint-core.mjs';
+import { fingerprintText, findCrossListings, similarity as fingerprintSimilarity } from './fingerprint-core.mjs';
 import { resolveColumns, parseTrackerRow } from './tracker-parse.mjs';
 import { normalizeCompany } from './tracker-utils.mjs';
+import { roleFuzzyMatch, roleTokens } from './role-matcher.mjs';
 
 try {
   const { config } = await import('dotenv');
@@ -1054,6 +1055,152 @@ export function collectSeenCompanyRoles(sources = {}, policy = {}, canonicalize 
   return seen;
 }
 
+const APPLIED_HISTORY_STATUSES = new Set([
+  'applied', 'responded', 'interview', 'offer', 'hired', 'rejected',
+]);
+
+const APPLICATION_TITLE_GENERIC = new Set([
+  'assistant', 'associate', 'chief', 'director', 'executive', 'head', 'junior',
+  'lead', 'manager', 'principal', 'senior', 'staff', 'vice', 'president',
+]);
+
+const HISTORY_REQ_RE = /\b(?:job\s*id|posting\s*id|requisition|req|jr|job|posting|ref(?:erence)?|r_)[\s:#_-]*([a-z][a-z0-9-]*\d[a-z0-9-]*|\d[a-z0-9-]*)\b/i;
+const HISTORY_LAST_ACTIVITY_RE = /\blast\s+activity\s*:\s*(\d{4}-\d{2}-\d{2})\b/i;
+const HISTORY_FINGERPRINT_RE = /\bjd\s+fingerprint\s*:\s*([0-9a-f]{16})\b/i;
+
+function explicitUrl(text) {
+  const match = String(text ?? '').match(/https?:\/\/[^\s|)]+/i);
+  return match ? match[0] : '';
+}
+
+function requisitionIdFromUrl(rawUrl) {
+  if (!rawUrl) return '';
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return '';
+  }
+  for (const key of ['jobId', 'jobid', 'gh_jid', 'requisitionId', 'requisitionid', 'reqId', 'reqid']) {
+    const value = parsed.searchParams.get(key);
+    if (value) return value.trim().toUpperCase();
+  }
+  const pathMatch = parsed.pathname.match(/\/(?:job|jobs|requisition|requisitions)\/([a-z0-9_-]*\d[a-z0-9_-]*)\b/i);
+  return pathMatch ? pathMatch[1].toUpperCase() : '';
+}
+
+/**
+ * Read explicit application-history records from the existing tracker.
+ * Tracker Date is the application date for Applied-or-later rows. Optional
+ * metadata stays in Notes using explicit labels. Missing values stay empty.
+ */
+export function parseApplicationHistory(applicationsText) {
+  const lines = String(applicationsText ?? '').split('\n');
+  const colmap = resolveColumns(lines);
+  const records = [];
+  for (const line of lines) {
+    const row = parseTrackerRow(line, colmap);
+    if (!row || !APPLIED_HISTORY_STATUSES.has(String(row.status).trim().toLowerCase())) continue;
+    const notes = String(row.notes ?? '').trim();
+    const jobUrl = explicitUrl(notes);
+    const reqMatch = notes.match(HISTORY_REQ_RE);
+    const lastActivityMatch = notes.match(HISTORY_LAST_ACTIVITY_RE);
+    const fingerprintMatch = notes.match(HISTORY_FINGERPRINT_RE);
+    records.push({
+      trackerNumber: row.num,
+      company: row.company,
+      jobTitle: row.role,
+      applicationDate: row.date,
+      status: row.status,
+      lastActivityDate: lastActivityMatch?.[1] || '',
+      notes,
+      jobUrl,
+      jobId: (reqMatch?.[1] || requisitionIdFromUrl(jobUrl)).toUpperCase(),
+      jdFingerprint: (fingerprintMatch?.[1] || '').toLowerCase(),
+    });
+  }
+  return records;
+}
+
+export function loadApplicationHistory(appsPath = APPLICATIONS_PATH) {
+  return parseApplicationHistory(readIfExists(appsPath));
+}
+
+function postingRequisitionId(job) {
+  for (const value of [job?.requisitionId, job?.jobId, job?.id]) {
+    if (typeof value === 'string' || typeof value === 'number') {
+      const normalized = String(value).trim().toUpperCase();
+      if (normalized) return normalized;
+    }
+  }
+  return requisitionIdFromUrl(job?.url);
+}
+
+function titleNeedsPriorApplicationReview(a, b) {
+  const tokensA = [...new Set(roleTokens(a).filter(t => !APPLICATION_TITLE_GENERIC.has(t)))];
+  const tokensB = [...new Set(roleTokens(b).filter(t => !APPLICATION_TITLE_GENERIC.has(t)))];
+  if (tokensA.length < 2 || tokensB.length < 2) return false;
+  const setB = new Set(tokensB);
+  const overlap = tokensA.filter(t => setB.has(t));
+  if (overlap.length < 2) return false;
+  const union = new Set([...tokensA, ...tokensB]).size;
+  return overlap.length / union >= 0.5;
+}
+
+function applicationCompanyKey(name, canonicalize) {
+  const normalized = String(canonicalize(name) ?? '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/);
+  const legalSuffixes = new Set(['co', 'company', 'corp', 'corporation', 'inc', 'incorporated', 'llc', 'llp', 'lp', 'ltd', 'limited', 'plc']);
+  while (normalized.length > 1 && legalSuffixes.has(normalized[normalized.length - 1])) normalized.pop();
+  return normalized.join('');
+}
+
+export function matchPriorApplication(job, history, canonicalize = defaultCompanyNormalizer) {
+  const companyKey = applicationCompanyKey(job?.company, canonicalize);
+  if (!companyKey) return { kind: 'none' };
+  const sameCompany = history.filter(record => applicationCompanyKey(record.company, canonicalize) === companyKey);
+  if (sameCompany.length === 0) return { kind: 'none' };
+
+  for (const record of sameCompany) {
+    const exactTitle = normalizeRoleForDedup(job?.title) === normalizeRoleForDedup(record.jobTitle);
+    const fuzzyTitle = !exactTitle && roleFuzzyMatch(job?.title, record.jobTitle);
+    if (!exactTitle && !fuzzyTitle) continue;
+
+    const currentReq = postingRequisitionId(job);
+    if (currentReq && record.jobId && currentReq !== record.jobId) {
+      return { kind: 'possible_repost', record, reason: 'different requisition ID' };
+    }
+
+    const currentFingerprint = fingerprintText(job?.description);
+    if (currentFingerprint && record.jdFingerprint
+      && fingerprintSimilarity(currentFingerprint, record.jdFingerprint) < 0.92) {
+      return { kind: 'possible_repost', record, reason: 'materially changed responsibilities' };
+    }
+    return { kind: 'previously_applied', record, reason: exactTitle ? 'exact normalized match' : 'normalized title match' };
+  }
+
+  const related = sameCompany.find(record => titleNeedsPriorApplicationReview(job?.title, record.jobTitle));
+  return related
+    ? { kind: 'possible_repost', record: related, reason: 'materially changed title' }
+    : { kind: 'none' };
+}
+
+function displayApplicationDate(date) {
+  const match = String(date ?? '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? Number(match[2]) + '/' + Number(match[3]) + '/' + match[1].slice(2) : String(date || 'unknown date');
+}
+
+export function priorApplicationMessage(match) {
+  const date = displayApplicationDate(match?.record?.applicationDate);
+  if (match?.kind === 'possible_repost') {
+    return 'Previously applied on ' + date + '. Review as a possible repost/new opportunity (' + match.reason + '); do not recommend reapplying until the change is confirmed.';
+  }
+  return 'Previously applied on ' + date + '. No recommendation to reapply unless the requisition materially changed, the role was reposted after a meaningful interval, or a new networking opportunity exists.';
+}
 function readIfExists(filePath) {
   return existsSync(filePath) ? readFileSync(filePath, 'utf-8') : '';
 }
@@ -1744,6 +1891,7 @@ async function main() {
   const seenUrls = seenUrlState.seen;
   const canonicalizeCompany = buildCompanyCanonicalizer(config.company_aliases);
   const seenCompanyRoles = loadSeenCompanyRoles(APPLICATIONS_PATH, canonicalizeCompany, { policy: historyPolicy });
+  const applicationHistory = loadApplicationHistory(APPLICATIONS_PATH);
 
   // 5. Fetch from each target
   const date = new Date().toISOString().slice(0, 10);
@@ -1763,6 +1911,8 @@ async function main() {
   let annotatedBlacklisted = 0;
   let totalFilteredVisa = 0;
   let totalDupes = 0;
+  const priorApplicationMatches = [];
+  const priorApplicationReviews = [];
   const newOffers = [];
   const errors = [...resolveErrors];
   const emptyTargets = [];
@@ -1854,13 +2004,28 @@ async function main() {
           totalFilteredVisa++;
           continue;
         }
+        const priorMatch = matchPriorApplication(job, applicationHistory, canonicalizeCompany);
+        if (priorMatch.kind === 'previously_applied') {
+          totalDupes++;
+          priorApplicationMatches.push({ job: { ...job, source: sourceName }, match: priorMatch });
+          continue;
+        }
+        const needsPriorReview = priorMatch.kind === 'possible_repost';
+        if (needsPriorReview) {
+          const historyNote = priorApplicationMessage(priorMatch);
+          job.note = typeof job.note === 'string' && job.note.trim()
+            ? historyNote + ' — ' + job.note
+            : historyNote;
+          priorApplicationReviews.push({ job: { ...job, source: sourceName }, match: priorMatch });
+        }
+
         const dedupUrl = normalizeUrlForDedup(job.url);
-        if (seenUrls.has(dedupUrl)) {
+        if (!needsPriorReview && seenUrls.has(dedupUrl)) {
           totalDupes++;
           continue;
         }
         const key = companyRoleDedupKey(job.company, job.title, canonicalizeCompany);
-        if (seenCompanyRoles.has(key)) {
+        if (!needsPriorReview && seenCompanyRoles.has(key)) {
           totalDupes++;
           continue;
         }
@@ -2007,7 +2172,21 @@ async function main() {
   if (Object.keys(windows).length > 0 || totalFilteredCooldown > 0) {
     console.log(`Filtered by cooldown:  ${totalFilteredCooldown} removed`);
   }
-  console.log(`Duplicates:            ${totalDupes} skipped`);
+  console.log('Duplicates:            ' + totalDupes + ' skipped');
+  if (priorApplicationMatches.length > 0) {
+    console.log('Previously applied:    ' + priorApplicationMatches.length + ' suppressed');
+    for (const { job, match } of priorApplicationMatches) {
+      console.log('  - ' + job.company + ' — ' + job.title);
+      console.log('    ' + priorApplicationMessage(match));
+    }
+  }
+  if (priorApplicationReviews.length > 0) {
+    console.log('Prior-app review:      ' + priorApplicationReviews.length + ' possible repost/new requisition');
+    for (const { job, match } of priorApplicationReviews) {
+      console.log('  - ' + job.company + ' — ' + job.title);
+      console.log('    ' + priorApplicationMessage(match));
+    }
+  }
   if (blacklist.size > 0) {
     if (includeBlacklisted) {
       console.log(`Blacklisted:           ${annotatedBlacklisted} let through annotated (--include-blacklisted)`);

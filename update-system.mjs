@@ -58,6 +58,8 @@ export const REEXEC_BUFFER_TIMEOUT_MS = parsePositiveInt(process.env.CAREER_OPS_
 
 // System layer paths — ONLY these files get updated
 const SYSTEM_PATHS = [
+  'judgment-policy.mjs',
+  'handoff.mjs',
   'modes/README.md',
   'modes/_shared.md',
   'modes/_profile.template.md',
@@ -71,6 +73,7 @@ const SYSTEM_PATHS = [
   'modes/scan.md',
   'modes/batch.md',
   'modes/apply.md',
+  'modes/handoff.md',
   'modes/auto-pipeline.md',
   'modes/contacto.md',
   'modes/deep.md',
@@ -134,6 +137,7 @@ const SYSTEM_PATHS = [
   'img-to-pdf.mjs',
   'archive-posting.mjs',
   'application-answers.mjs',
+  'docs/HANDOFF.md',
   'generate-cover-letter.mjs',
   'merge-tracker.mjs',
   'tracker-links.mjs',

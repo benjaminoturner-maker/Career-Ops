@@ -7,6 +7,7 @@ All scripts live in the project root as `.mjs` modules and are exposed via `npm 
 | Command | Script | Purpose |
 |---------|--------|---------|
 | `npm run doctor` | `doctor.mjs` | Validate setup prerequisites |
+| `npm run handoff -- --file <handoff.yml>` | `handoff.mjs` | Validate and persist a trusted ChatGPT evaluation without rerunning A-G |
 | `npm run verify` | `verify-pipeline.mjs` | Check pipeline data integrity |
 | `npm run normalize` | `normalize-statuses.mjs` | Fix non-canonical statuses |
 | `npm run dedup` | `dedup-tracker.mjs` | Remove duplicate tracker entries |

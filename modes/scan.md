@@ -2,6 +2,18 @@
 
 Scans configured job portals, filters by title relevance, and adds new offers to the pipeline for subsequent evaluation.
 
+## Discovery-only judgment boundary
+
+This mode discovers, verifies, filters, deduplicates, and may retain promising roles for evaluation. It does not perform the complete calibrated evaluation in `oferta.md`.
+
+- Label retained roles `requires evaluation`.
+- Do not emit a final Tier 1 or Tier 2 classification or a numerical fit score from scan/discovery evidence alone.
+- Descriptive discovery labels such as `direct-fit lead`, `credible lead`, or `stretch lead` are provisional and are not final tiers.
+- If the user requests a final tier or score, route the role through the common interview-credibility gate in `_shared.md` and the full evaluation in `oferta.md`.
+- Gmail-, LinkedIn-, scanner-, ATS-, referral-, and web-discovered roles follow the same evaluation policy. Source affects discovery confidence, not judgment standards.
+
+Preserve application-history, possible-repost, deduplication, and liveness behavior before this boundary.
+
 > **Note (v1.6+):** The default scanner (`scan.mjs` / `npm run scan`) is **zero-token** and uses structured sources: local parsers configured per company and public Greenhouse, Ashby, and Lever APIs. The levels with Playwright/WebSearch described below represent the **agent** workflow (executed by the AI agent), not what `scan.mjs` does. If a company does not have a local parser or a Greenhouse/Ashby/Lever API, `scan.mjs` will ignore it; in those cases, the agent must manually complete Level 1 (Playwright) or Level 3 (WebSearch).
 >
 > **Rule (v1.8+):** If a company's local parser completes successfully in Level 0, the agent **must not** repeat that company in Playwright (Level 1) or API (Level 2). In Level 3, general queries remain active, but results from companies already covered by a parser are discarded. See [Rule: Successful Local Parser](#rule-successful-local-parser--no-expensive-scraping-repetition).
@@ -226,10 +238,16 @@ Levels are additive — they are executed in order, and results are merged and d
    - An offer is skipped only when the provider supplied a posting date (`postedAt`) AND it is older than N days.
    - Offers from providers that expose no date always pass (do not penalize missing data).
 
-7. **Deduplicate** against 3 sources:
-   - `scan-history.tsv` → exact URL already seen
-   - `applications.md` → normalized company + role already evaluated
-   - `pipeline.md` → exact URL already in pending or processed list
+7. **Deduplicate and check explicit application history** against 3 sources:
+   - scan-history.tsv → exact URL already seen
+   - applications.md → normalized company + role already evaluated, plus explicit Applied-or-later history
+   - pipeline.md → exact URL already in pending or processed list
+
+   Historical applications exist only when explicitly entered in data/applications.md; never guess or reconstruct them. For an exact or conservatively normalized prior-application match, do not present the posting as new and do not recommend reapplying by default. Report when useful:
+
+   > Previously applied on M/D/YY. No recommendation to reapply unless the requisition materially changed, the role was reposted after a meaningful interval, or a new networking opportunity exists.
+
+   A different known requisition ID, materially changed but functionally related title, or materially changed stored JD fingerprint is a possible repost/new opportunity. Flag the prior application for review and let normal Tier 1/2/3 screening continue; do not automatically suppress or recommend reapplication. Unrelated roles at the same company retain normal screening behavior.
 
 7.1. **Cross-listing check (#1597)** — automatic in `scan.mjs`, warn only:
    - Each new offer's JD body (when the provider's list API ships one, e.g. Lever) is fingerprinted (64-bit SimHash, stored as the 8th `scan-history.tsv` column).

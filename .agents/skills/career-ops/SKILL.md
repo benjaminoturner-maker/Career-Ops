@@ -4,7 +4,7 @@ description: AI job search command center -- evaluate offers, generate CVs, scan
 arguments: mode
 user_invocable: true
 user-invocable: true
-argument-hint: "[scan | deep | pdf | latex | latex-tex | cover | email | add | eu-swe | oferta | ofertas | apply | batch | tracker | agent-inbox | pipeline | contacto | training | project | interview-prep | interview | interview/plan | interview/practice | interview/debrief | patterns | offer-prep | titles | upskill | followup | update]"
+argument-hint: "[scan | deep | pdf | latex | latex-tex | cover | email | add | handoff | eu-swe | oferta | ofertas | apply | batch | tracker | agent-inbox | pipeline | contacto | training | project | interview-prep | interview | interview/plan | interview/practice | interview/debrief | patterns | offer-prep | titles | upskill | followup | update]"
 license: MIT
 ---
 
@@ -52,6 +52,7 @@ Determine the mode from `$mode`:
 | `latex-tex` | `latex-tex` |
 | `email` | `email` |
 | `add` | `add` |
+| `handoff` | `handoff` |
 | `expand` | `expand` |
 | `training` | `training` |
 | `project` | `project` |
@@ -131,6 +132,7 @@ Available commands:
   /career-ops cover     → Cover letter: standalone JD paste or /career-ops cover {slug}
   /career-ops email     → Formal application email draft (draft-only; never sends, submits, or clicks)
   /career-ops add       → Add a project/paper/role to your CV (fetch + preview + confirm)
+  /career-ops handoff   → Validate and import a completed ChatGPT evaluation (no A-G rerun)
   /career-ops expand    → Auto-discover and add missing competencies from profile links
   /career-ops training  → Evaluate course/cert against North Star
   /career-ops project   → Evaluate portfolio project idea
@@ -156,13 +158,15 @@ Or paste a JD directly to run the full pipeline.
 
 After determining the mode, load the necessary files before executing:
 
+Read required policy files sequentially and completely. Do not combine `_shared.md`, `_profile.md`, `_custom.md`, and the selected mode into one oversized bulk read whose output may truncate. For any action that will emit a final tier or numerical fit score, confirm the Interview-Credibility Judgment Gate in `_shared.md` is present before evaluating; if it is not available, stop at `requires evaluation` rather than improvising a score.
+
 If `modes/_custom.md` exists, read it after `modes/_profile.md` and before the selected mode file. It contains user house rules and procedural preferences. It may override workflow/style defaults, but it never adds factual claims about the candidate.
 
 ### Modes that require `_shared.md` + their mode file
 
 Read `modes/_shared.md` + `modes/_profile.md` (if exists) + `modes/_custom.md` (if exists) + `modes/{mode}.md`
 
-Applies to: `auto-pipeline`, `oferta`, `ofertas`, `pdf`, `contacto`, `apply`, `pipeline`, `scan`, `batch`
+Applies to: `auto-pipeline`, `oferta`, `ofertas`, `pdf`, `contacto`, `apply`, `pipeline`, `scan`, `batch`, `handoff`
 
 ### Standalone modes with profile and custom context
 

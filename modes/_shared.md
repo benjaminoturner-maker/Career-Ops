@@ -58,6 +58,22 @@ Every other reference to tier elsewhere in the modes (batch.md, pipeline.md, etc
 
 ## Scoring System
 
+### Interview-Credibility Judgment Gate (before any final tier or score)
+
+Discovery and evaluation are separate. A scan, Gmail alert, web result, or ATS result may be retained as **requires evaluation**, but discovery alone must not emit a final Tier 1/Tier 2 classification or numerical fit score.
+
+Before any mode emits a final tier or numerical fit score, it must explicitly record:
+
+1. each material requirement as `hard gate`, `strong preference`, `soft preference`, or `neutral context`;
+2. specialist-versus-generalist hiring intent;
+3. Ben's disadvantage against the likely candidate pool;
+4. a concrete answer to: **Why would this employer interview Ben instead of candidates who have both the required function and requested industry/domain experience?**;
+5. posting evidence for a specific role-level bridge.
+
+Apply the common policy in `judgment-policy.mjs`. Tier 1 or Tier 2 is permitted only when no unmet hard gate exists and both a concrete Why Ben rationale and role-supported bridge exist. Generic transferable skills or responsibility overlap are insufficient. Apply this gate before interpreting the ordinary 1-5 scoring bands below; a raw responsibility-overlap score cannot override the gate.
+
+The source channel never changes the gate. Gmail-, LinkedIn-, scanner-, ATS-, referral-, and web-discovered roles all use the same policy when final tiering occurs.
+
 The evaluation uses 6 blocks (A-F) with a global score of 1-5:
 
 | Dimension | What it measures |

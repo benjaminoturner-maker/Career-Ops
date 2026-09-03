@@ -18,6 +18,17 @@ With the optional Via column (intermediary channel, #1596) after Company:
 - **Unknown end employer** (recruiter hasn't named the client yet): Company = `?` (the structural marker — never the word "Confidential", which is locale-dependent and collides with real firm names), Via = the agency, and a distinguishing descriptor in Notes (e.g. `fintech, Leeds`). Display it to the user as "Confidential (via {Via})".
 - The row's identity is its `#` (report number) — Company is display data and changes at most once, at reveal.
 
+## Historical Applications
+
+Use data/applications.md as the single source of truth for both Career Ops-era and pre-Career Ops applications.
+
+- Enter a historical application only when the user explicitly supplies it. Never guess or reconstruct past applications from search results, email silence, memory, or indirect evidence.
+- For an application without an evaluation report, use the real application date when known, N/A for Score, - for PDF/Report, the confirmed status, and factual Notes.
+- The tracker fields support Company, Role, application date (Date), Status, and Notes. Put optional structured metadata in Notes only when explicitly known: Last activity: YYYY-MM-DD, Job ID: ..., Job URL: https://..., and JD fingerprint: <16 hex>.
+- Missing historical fields stay absent. “No response as of YYYY-MM-DD” is a status note, not an inferred last-activity date.
+- Record every future application immediately after submission so subsequent scans can screen it.
+- A prior application changes the recommendation; it does not always erase the posting. Exact or conservatively normalized matches are not new opportunities and should not trigger a default reapplication recommendation. A different requisition ID, materially changed title, or materially changed responsibilities is flagged for review as a possible repost/new opportunity.
+
 Possible states: `Evaluated` → `Applied` → `Responded` → `Interview` → `Offer` / `Rejected` / `Discarded` / `SKIP`
 
 - `Evaluated` = offer evaluated with report, pending decision

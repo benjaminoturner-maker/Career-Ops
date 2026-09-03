@@ -44,6 +44,20 @@ Classify the job into one of the 6 archetypes (see `_shared.md`). If it is a hyb
 - How to rewrite the summary in block E
 - Which STAR stories to prepare in block F
 
+## Step 0.1 — Interview-Credibility Gate
+
+Complete this gate before calculating or presenting the global score or final tier. Use the common policy in `_shared.md` / `judgment-policy.mjs`.
+
+Report:
+
+- material requirements and their strength (`hard gate`, `strong preference`, `soft preference`, or `neutral context`);
+- specialist-versus-generalist hiring intent;
+- likely candidate-pool disadvantage;
+- **Why Ben:** why this employer would interview Ben instead of candidates with both the function and requested domain experience;
+- the exact posting evidence for any role-specific bridge.
+
+If there is no concrete Why Ben rationale and posting-supported bridge, Tier 1 and Tier 2 are prohibited even when responsibility overlap is strong. An unmet hard gate normally means Reject. A strong preference without a defensible bridge is Tier 3 at best. Do not call a role Tier 1/Tier 2 or publish a 4.0+ fit score first and apply this gate afterward.
+
 ## Block A — Role Summary
 
 Table with:

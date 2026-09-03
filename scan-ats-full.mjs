@@ -39,7 +39,7 @@ import greenhouse from './providers/greenhouse.mjs';
 import lever from './providers/lever.mjs';
 import ashby from './providers/ashby.mjs';
 import workday from './providers/workday.mjs';
-import { buildTitleFilter, buildLocationFilter, buildContentFilter, matchedTitleKeywords, loadSeenUrls, normalizeUrlForDedup, appendToPipeline, appendToScanHistory, loadBlacklist } from './scan.mjs';
+import { buildTitleFilter, buildLocationFilter, buildContentFilter, matchedTitleKeywords, loadSeenUrls, normalizeUrlForDedup, appendToPipeline, appendToScanHistory, loadBlacklist, loadApplicationHistory, matchPriorApplication, priorApplicationMessage, buildCompanyCanonicalizer } from './scan.mjs';
 import { SEED_SOURCES, toPortalEntry } from './seeds/vc-portfolios.mjs';
 import { normalizeCompany } from './tracker-utils.mjs';
 
@@ -490,6 +490,8 @@ async function main() {
 
   const { seen: seenUrls } = loadSeenUrls();
   const blacklist = loadBlacklist();
+  const applicationHistory = loadApplicationHistory();
+  const canonicalizeCompany = buildCompanyCanonicalizer(config.company_aliases);
   // sinceMs and includeUndated let providers (currently only workday.mjs)
   // stop paginating a tenant early instead of always walking to max_pages:
   // sinceMs once postings are confidently past the --since window, and
@@ -573,7 +575,26 @@ async function main() {
     }
   }
 
-  const blacklistResult = filterBlacklistedOffers(newOffers, blacklist, { includeBlacklisted: opts.includeBlacklisted });
+  const priorApplicationMatches = [];
+  const priorApplicationReviews = [];
+  const historyScreenedOffers = [];
+  for (const offer of newOffers) {
+    const match = matchPriorApplication(offer, applicationHistory, canonicalizeCompany);
+    if (match.kind === 'previously_applied') {
+      priorApplicationMatches.push({ job: offer, match });
+      continue;
+    }
+    if (match.kind === 'possible_repost') {
+      const historyNote = priorApplicationMessage(match);
+      offer.note = typeof offer.note === 'string' && offer.note.trim()
+        ? historyNote + ' — ' + offer.note
+        : historyNote;
+      priorApplicationReviews.push({ job: offer, match });
+    }
+    historyScreenedOffers.push(offer);
+  }
+
+  const blacklistResult = filterBlacklistedOffers(historyScreenedOffers, blacklist, { includeBlacklisted: opts.includeBlacklisted });
   let offers = blacklistResult.offers;
   if (offers.length && opts.liveness) offers = await filterLive(offers);
   offers.sort((a, b) => (b.postedAt || 0) - (a.postedAt || 0));
@@ -600,8 +621,18 @@ async function main() {
       log(`Blacklisted:      ${blacklistResult.filteredBlacklist} skipped (blacklist)`);
     }
   }
-  if (droppedContent) log(`Content-filtered:   ${droppedContent}`);
-  log(`New matches:        ${offers.length}`);
+  if (droppedContent) log('Content-filtered:   ' + droppedContent);
+  if (priorApplicationMatches.length) {
+    log('Previously applied: ' + priorApplicationMatches.length + ' suppressed');
+    for (const { job, match } of priorApplicationMatches) {
+      log('  - ' + job.company + ' — ' + job.title);
+      log('    ' + priorApplicationMessage(match));
+    }
+  }
+  if (priorApplicationReviews.length) {
+    log('Prior-app review:   ' + priorApplicationReviews.length + ' possible repost/new requisition');
+  }
+  log('New matches:        ' + offers.length);
 
   if (offers.length) {
     log('\nNew offers:');
@@ -663,6 +694,8 @@ async function main() {
       postingsFilteredBlacklist: blacklistResult.filteredBlacklist,
       postingsAnnotatedBlacklisted: blacklistResult.annotatedBlacklisted,
       postingsDroppedContent: droppedContent,
+      postingsPreviouslyApplied: priorApplicationMatches.length,
+      postingsPriorApplicationReview: priorApplicationReviews.length,
       unreachableBoards: totalErrors,
       saved,
       offers: offers.map(o => ({

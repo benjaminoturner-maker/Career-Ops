@@ -90,6 +90,8 @@ Read the entire page/form to scan for knock-out questions BEFORE generating full
 4. If there is a Section H or `## Application Answers` → load previous answers as a base
 5. If there is NO match → notify and offer to run a quick auto-pipeline
 
+**Imported handoff reports:** A report whose Machine Summary contains `evaluation_source: chatgpt_handoff` and `handoff_schema_version: 1` is already evaluated. Use its CV Match, interview-credibility, source-backed claims, personalization strategy, material concerns, and JD sections as downstream context. Do not offer or trigger a full A–G reevaluation merely because the report is concise or lacks newly generated STAR stories. Re-evaluation is appropriate only when the normal exception checks find a company/title/requisition/JD mismatch, an application-history conflict or possible repost, unsupported candidate evidence, an omitted/mislabeled hard gate, or a failed Tier 1/2 interview-credibility gate.
+
 ## Step 3 — Detect changes in the role
 
 If the role on screen differs from the one evaluated:
