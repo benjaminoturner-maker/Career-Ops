@@ -12,11 +12,28 @@ Career Ops retains its normal full `auto-pipeline` and `oferta` paths when no tr
 ## Invocation
 
 ```bash
+node github-handoff-receiver.mjs --once
 node handoff.mjs --file handoff.yml --dry-run
 node handoff.mjs --file handoff.yml
 ```
 
-The first command validates without writing. The second creates a concise report and an `Evaluated` or `Preparing` tracker row. It never creates application materials or starts/submits an application.
+## GitHub Issue receiver
+
+The receiver polls open Issues in `benjaminoturner-maker/Career-Ops` carrying the exact
+`career-ops-handoff` label. Each qualifying Issue body must contain exactly one fenced
+`yaml` or `yml` block with the complete existing handoff payload, including a stable
+`handoff_id`. Human-readable prose may appear outside the fence.
+
+It performs transport validation only, writes `<handoff_id>.yml` immutably under
+`data/handoff-inbox/`, and records atomic receipts under
+`data/handoff-runtime/github-receipts/`. Repeated identical Issues are no-ops; edited
+Issues, malformed payloads, and destination-content collisions are recorded for review
+without overwriting the inbox. Each Issue is handled independently in Issue-number order,
+so one blocked Issue does not prevent later valid Issues from being received. A run that
+encounters any blocker still reports an aggregate `blocked` status and exits nonzero after
+all eligible Issues have been considered. The receiver never invokes `handoff-runner.mjs`.
+
+The second command validates without writing. The third creates a concise report and an `Evaluated` or `Preparing` tracker row. The receiver only transports payloads into the local inbox; it never creates reports or tracker rows. None of these commands creates application materials or starts/submits an application.
 
 ## Compact version 1 schema
 
