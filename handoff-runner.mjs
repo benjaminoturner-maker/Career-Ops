@@ -36,12 +36,15 @@ function runVerify(root, verifyFn) {
   return { stdout: result.stdout };
 }
 
-export async function runOnce({ rootDir = ROOT, verifyFn } = {}) {
+export async function runOnce({ rootDir = ROOT, verifyFn, filename } = {}) {
   const root = resolve(rootDir); const p = paths(root);
   mkdirSync(p.inbox, { recursive: true }); mkdirSync(p.state, { recursive: true });
   if (!acquire(p.lock)) return { status: 'busy' };
   try {
-    const files = readdirSync(p.inbox).filter(name => /\.yml$/i.test(name)).sort();
+    if (filename && (filename !== filename.replace(/[/\\]/g, '') || !HANDOFF_RE.test(filename.replace(/\.yml$/i, '').slice(0, 128)))) {
+      throw new Error('filename must be a local inbox YAML filename');
+    }
+    const files = readdirSync(p.inbox).filter(name => /\.yml$/i.test(name) && (!filename || name === filename)).sort();
     if (!files.length) return { status: 'idle' };
     let file; let path; let payload; let skippedCompleted = false;
     for (const candidate of files) {
@@ -85,6 +88,6 @@ export async function runOnce({ rootDir = ROOT, verifyFn } = {}) {
 function record(p, file, state) { if (state.handoff_id) atomicJson(join(p.state, `${state.handoff_id}.json`), { ...state, source_file: file, updated_at: new Date().toISOString() }); return state; }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
-  if (process.argv[2] !== '--once') { console.error('Usage: node handoff-runner.mjs --once'); process.exitCode = 1; }
-  else { try { console.log(JSON.stringify(await runOnce(), null, 2)); } catch (e) { console.error(`handoff-runner: ${e.message}`); process.exitCode = 1; } }
+  if (process.argv[2] !== '--once') { console.error('Usage: node handoff-runner.mjs --once [--file inbox.yml]'); process.exitCode = 1; }
+  else { try { const fileIndex = process.argv.indexOf('--file'); console.log(JSON.stringify(await runOnce({ filename: fileIndex >= 0 ? process.argv[fileIndex + 1] : undefined }), null, 2)); } catch (e) { console.error(`handoff-runner: ${e.message}`); process.exitCode = 1; } }
 }

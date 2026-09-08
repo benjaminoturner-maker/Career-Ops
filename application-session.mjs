@@ -18,6 +18,9 @@ import { loadApplicationHistory, loadBlacklist, matchPriorApplication } from './
 import { normalizeCompany, writeFileAtomic } from './tracker-utils.mjs';
 import { normalizeApplicationAnswersSnapshot, upsertApplicationAnswersSection } from './application-answers.mjs';
 import { seedFollowup } from './followup-seed.mjs';
+import { receiveOnce } from './github-handoff-receiver.mjs';
+import { runOnce as runHandoffOnce } from './handoff-runner.mjs';
+import yaml from 'js-yaml';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SCHEMA_VERSION = 1;
@@ -81,7 +84,7 @@ export function classifyLane(item) {
 }
 
 export function createSession(items, options = {}) {
-  if (!Array.isArray(items) || items.length === 0) throw new Error('session queue must contain at least one item');
+  if (!Array.isArray(items) || (items.length === 0 && options.allowEmpty !== true)) throw new Error('session queue must contain at least one item');
   const targetMinutes = Number(options.targetMinutes ?? 30);
   if (!Number.isFinite(targetMinutes) || targetMinutes <= 0) throw new Error('target minutes must be greater than zero');
   const now = options.now ? new Date(options.now) : new Date();
@@ -386,6 +389,39 @@ export function receivedHandoffFiles(receiverResult) {
     .map(result => result.destination_inbox_filename);
 }
 
+function handoffQueueItem(payload, imported) {
+  const job = payload.job || {}; const evaluation = payload.evaluation || {};
+  const tier = nonempty(evaluation.tier);
+  return {
+    id: nonempty(payload.handoff_id), handoff_id: nonempty(payload.handoff_id), company: nonempty(job.company),
+    title: nonempty(job.title), url: nonempty(job.url), requisition_id: nonempty(job.requisition_id),
+    jd_text: nonempty(job.jd_text), approved: true, priority: tier === 'Tier 1', lane: tier === 'Tier 1' ? 'priority' : 'fast',
+    fit_score: evaluation.score, report_number: imported.reportNumber, report_path: imported.report,
+    tracker_number: Number(imported.reportNumber) || null, factual_integrity: 'passed', friction: 'low',
+    source: 'trusted-chatgpt-handoff', liveness: 'active',
+  };
+}
+
+export async function startHandoffs({ rootDir = ROOT, minutes = 30, sessionId, receiver = receiveOnce, runner = runHandoffOnce, verifyFn, adapters } = {}) {
+  const receiverResult = await receiver({ rootDir });
+  const blockers = (receiverResult?.results || []).filter(result => String(result?.status || '').startsWith('blocked_') || String(result?.status || '').startsWith('conflict_'));
+  const queue = []; const imports = [];
+  for (const filename of receivedHandoffFiles(receiverResult)) {
+    let result;
+    try { result = await runner({ rootDir, filename, verifyFn }); }
+    catch (error) { blockers.push({ status: 'blocked_import', destination_inbox_filename: filename, error: error.message }); continue; }
+    if (result?.status !== 'completed') { blockers.push({ status: 'blocked_import', destination_inbox_filename: filename, result }); continue; }
+    try {
+      const payload = yaml.load(readFileSync(join(resolve(rootDir), 'data', 'handoff-inbox', filename), 'utf8'));
+      queue.push(handoffQueueItem(payload, result)); imports.push({ filename, status: result.status, handoff_id: payload.handoff_id, report_number: result.reportNumber });
+    } catch (error) { blockers.push({ status: 'blocked_queue_mapping', destination_inbox_filename: filename, error: error.message }); }
+  }
+  const state = createSession(queue, { targetMinutes: minutes, sessionId, allowEmpty: true });
+  state.handoff_sync = { receiver_status: receiverResult?.status || 'unknown', queue_additions: imports, blockers };
+  await advanceSession(state, adapters || createDefaultAdapters({ rootDir }));
+  return state;
+}
+
 export function sessionSummary(state, now = new Date()) {
   const completedIds = new Set(state.completed_items.map(item => item.id));
   const preparedNotSubmitted = state.prepared_items.filter(item => !completedIds.has(item.id)).length;
@@ -426,6 +462,7 @@ function usage() {
   return [
     'Usage:',
     '  node application-session.mjs start --queue queue.json [--minutes 30] [--session ID] [--state path]',
+    '  node application-session.mjs start-handoffs [--minutes 30] [--session ID] [--state path]',
     '  node application-session.mjs resume --state path',
     '  node application-session.mjs prepared --state path',
     '  node application-session.mjs confirm-submitted --state path --confirmed-by-ben --date YYYY-MM-DD [--provenance text] [--attention-minutes N] [--answers answers.json]',
@@ -447,6 +484,9 @@ async function main() {
     state = createSession(Array.isArray(input) ? input : input.items, { targetMinutes: argValue(argv, '--minutes') || 30, sessionId: argValue(argv, '--session') || input.session_id });
     statePath = statePath || defaultStatePath(state.session_id);
     await advanceSession(state);
+  } else if (command === 'start-handoffs') {
+    state = await startHandoffs({ minutes: argValue(argv, '--minutes') || 30, sessionId: argValue(argv, '--session') || undefined });
+    statePath = statePath || defaultStatePath(state.session_id);
   } else {
     if (!statePath) throw new Error(usage());
     state = loadSession(statePath);

@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import yaml from 'js-yaml';
 import {
   addAttention,
   advanceSession,
@@ -15,6 +16,7 @@ import {
   receivedHandoffFiles,
   saveSession,
   sessionSummary,
+  startHandoffs,
 } from '../application-session.mjs';
 
 const active = async () => ({ result: 'active', reason: 'fixture active' });
@@ -195,4 +197,28 @@ test('controller source has no browser or final-submit action', () => {
   assert.doesNotMatch(source, /from ['"]playwright/);
   assert.doesNotMatch(source, /\.click\s*\(/);
   assert.doesNotMatch(source, /\bsubmitApplication\s*\(/);
+});
+
+test('blocked receiver imports later valid handoffs into priority and fast lanes', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-handoff-start-'));
+  try {
+    const inbox = join(root, 'data', 'handoff-inbox');
+    mkdirSync(inbox, { recursive: true });
+    const payload = (id, tier, title) => ({ handoff_id: id, job: { company: `${id} Co`, title, url: `https://jobs.example.com/${id}`, requisition_id: id, jd_text: `${title} ${id} description` }, evaluation: { tier } });
+    writeFileSync(join(inbox, 'good-1.yml'), yaml.dump(payload('good-1', 'Tier 1', 'Priority Role')));
+    writeFileSync(join(inbox, 'good-2.yml'), yaml.dump(payload('good-2', 'Tier 2', 'Fast Role')));
+    const state = await startHandoffs({ rootDir: root, sessionId: 'handoff-start-test', receiver: async () => ({ status: 'blocked', results: [{ status: 'blocked_invalid_issue', issue_number: 1 }, { status: 'received', destination_inbox_filename: 'good-1.yml' }, { status: 'received', destination_inbox_filename: 'good-2.yml' }] }), runner: async ({ filename }) => ({ status: 'completed', reportNumber: filename === 'good-1.yml' ? '21' : '22', report: join(root, 'reports', `${filename}.md`) }), adapters: adapters() });
+    assert.equal(state.handoff_sync.queue_additions.length, 2);
+    assert.equal(state.handoff_sync.blockers[0].status, 'blocked_invalid_issue');
+    assert.equal(state.current_item.lane, 'priority');
+    assert.equal(state.current_item.source, 'trusted-chatgpt-handoff');
+    assert.equal(state.remaining_queue[0].lane, 'fast');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('zero received handoffs returns a clean completed session with blocker provenance', async () => {
+  const state = await startHandoffs({ sessionId: 'empty-handoff-test', receiver: async () => ({ status: 'idle', results: [] }), runner: async () => { throw new Error('must not run'); }, adapters: adapters() });
+  assert.equal(state.status, 'complete');
+  assert.deepEqual(state.handoff_sync.queue_additions, []);
+  assert.deepEqual(state.handoff_sync.blockers, []);
 });

@@ -45,7 +45,15 @@ Queue item fields:
 }
 ```
 
-Start with:
+When Ben says “Start my 30-minute application session”, first synchronize trusted ChatGPT handoffs and then start the controller:
+
+```bash
+node application-session.mjs start-handoffs --minutes 30
+```
+
+This receives labeled GitHub Issues, imports each successfully received inbox file independently through `handoff-runner.mjs`, and maps only completed trusted imports into the queue. Receiver/import blockers remain in `handoff_sync`; one bad Issue or import cannot starve later valid handoffs. If none are received, it returns a normal completed empty session (`0 handoffs queued`).
+
+For a controlled/manual queue, use:
 
 ```bash
 node application-session.mjs start --queue queue.json --minutes 30
