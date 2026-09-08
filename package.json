@@ -48,6 +48,7 @@
     "star": "node match-star.mjs",
     "archive": "node archive-posting.mjs",
     "prepare:application": "node prepare-application.mjs",
+    "application:session": "node application-session.mjs",
     "handoff": "node handoff.mjs",
     "handoff:receive": "node github-handoff-receiver.mjs --once",
     "handoff:run": "node handoff-runner.mjs --once",
