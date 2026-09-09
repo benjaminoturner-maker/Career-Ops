@@ -37,7 +37,7 @@ export function validateLinkedInTask(payload) {
   const exactUrl = String(payload.linkedin_search.url ?? '').trim();
   let url;
   try { url = new URL(exactUrl); } catch { throw new Error('linkedin_search.url must be a valid URL'); }
-  if (url.protocol !== 'https:' || !/(^|\.)linkedin\.com$/i.test(url.hostname) || !url.pathname.startsWith('/jobs')) {
+  if (url.protocol !== 'https:' || !/(^|\.)linkedin\.com$/i.test(url.hostname) || !/(?:^|\/)jobs(?:\/|$)/i.test(url.pathname)) {
     throw new Error('linkedin_search.url must be an https LinkedIn Jobs URL');
   }
   const expected = deriveLinkedInTaskId(payload);

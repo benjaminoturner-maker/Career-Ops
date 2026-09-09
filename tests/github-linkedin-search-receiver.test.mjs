@@ -24,6 +24,13 @@ test('valid LinkedIn task is received immutably and duplicate is a no-op', () =>
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+test('real LinkedIn email redirect path with a jobs segment is accepted', () => {
+  const root = setup(); try {
+    const value = task({ linkedin_search: { url: 'https://www.linkedin.com/comm/jobs/search-results/?keywords=M%26A&geoId=90000034', keywords: 'M&A', location: 'Denver Metropolitan Area' } });
+    assert.equal(receiveLinkedInIssue(issue(value), options(root)).status, 'received');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test('changed Issue body conflicts instead of overwriting immutable LinkedIn task', () => {
   const root = setup(); try {
     const original = task(); receiveLinkedInIssue(issue(original), options(root));
