@@ -18,6 +18,10 @@ data/handoff-inbox/*
 !data/handoff-inbox/.gitkeep
 data/handoff-runtime/*
 !data/handoff-runtime/.gitkeep
+data/linkedin-search-inbox/*
+!data/linkedin-search-inbox/.gitkeep
+data/linkedin-search-runtime/*
+!data/linkedin-search-runtime/.gitkeep
 data/active-interviews.md
 data/reply-candidates.json
 data/parser-output/**/*.json

@@ -29,7 +29,7 @@ const VALID_ACTIONS = new Set(['Apply', 'Consider', 'Research first', 'Skip']);
 const VALID_TRACKER_STATUSES = new Set(['Evaluated', 'Preparing']);
 const FACT_SOURCES = new Set([
   'cv.md', 'article-digest.md', 'config/profile.yml', 'config/cv-facts.json',
-  'modes/_profile.md', 'interview-prep.md', 'voice-dna.md',
+  'config/handoff-facts.md', 'modes/_profile.md', 'interview-prep.md', 'voice-dna.md',
 ]);
 
 export class HandoffValidationError extends Error {

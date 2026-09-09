@@ -45,13 +45,20 @@ Queue item fields:
 }
 ```
 
-When Ben says “Start my 30-minute application session”, first synchronize trusted ChatGPT handoffs and then start the controller:
+When Ben says “Start my 30-minute application session”, perform these phases in order:
+
+1. Run the separate `career-ops-linkedin-search` receiver. For every valid pending task, open the **exact** `linkedin_search.url` in Ben's authenticated browser and preserve all supplied keyword, location, geo, distance, posted-window, salary, and work-arrangement context. Use saved LinkedIn login state when available and inspect the real search-results page, including additional roles beyond those embedded in the alert email.
+2. Deduplicate every discovered role against `data/applications.md` and already-evaluated work. Run the normal Career Ops evaluation, interview-credibility gate, hard-gate analysis, liveness, history, and factual-integrity checks. Only an approved, live, source-backed role may enter the session queue. A LinkedIn task is discovery input only and is never a trusted final evaluation.
+3. Receive and import normal `career-ops-handoff` Issues through the existing trusted handoff path.
+4. Continue the durable 30-minute application session.
+
+If LinkedIn requires login, presents a CAPTCHA/security challenge, or reports the page unavailable, record that task's blocker and continue to later tasks. Never bypass a CAPTCHA or security control. Browser and evaluation failures are isolated per task and per discovered job.
 
 ```bash
 node application-session.mjs start-handoffs --minutes 30
 ```
 
-This receives labeled GitHub Issues, imports each successfully received inbox file independently through `handoff-runner.mjs`, and maps only completed trusted imports into the queue. Receiver/import blockers remain in `handoff_sync`; one bad Issue or import cannot starve later valid handoffs. If none are received, it returns a normal completed empty session (`0 handoffs queued`).
+The controller receives LinkedIn tasks before trusted handoffs. The CLI controller itself deliberately has no browser driver: Codex supplies the authenticated-browser expansion and normal evaluation adapters while following this mode. Without that adapter, the task is retained with a `blocked_browser` result and handoff synchronization still continues. LinkedIn results are reported under `linkedin_expansion`; existing receiver/import blockers remain in `handoff_sync`. One bad LinkedIn task, handoff Issue, discovered job, or import cannot starve later valid work. If no queue items are produced, the command returns a normal completed empty session.
 
 For a controlled/manual queue, use:
 
@@ -103,3 +110,15 @@ Ben-attention minutes are recorded explicitly; unattended model/render/browser t
 The receiver may return aggregate `blocked` and a nonzero exit while still receiving later valid Issues. Inspect its per-Issue `results` or the inbox. Only successfully received inbox files may proceed to `handoff-runner.mjs`; GitHub content never bypasses runner validation/import.
 
 Keep session output operational and compact. Do not insert strategy commentary between items.
+
+Include the compact state summary without changing `handoff_sync`:
+
+```yaml
+linkedin_expansion:
+  tasks_received: 0
+  tasks_completed: 0
+  jobs_seen: 0
+  jobs_evaluated: 0
+  jobs_queued: 0
+  blockers: []
+```

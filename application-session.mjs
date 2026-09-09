@@ -19,6 +19,8 @@ import { normalizeCompany, writeFileAtomic } from './tracker-utils.mjs';
 import { normalizeApplicationAnswersSnapshot, upsertApplicationAnswersSection } from './application-answers.mjs';
 import { seedFollowup } from './followup-seed.mjs';
 import { receiveOnce } from './github-handoff-receiver.mjs';
+import { receiveLinkedInOnce } from './github-linkedin-search-receiver.mjs';
+import { processLinkedInTasks } from './linkedin-search-expansion.mjs';
 import { runOnce as runHandoffOnce } from './handoff-runner.mjs';
 import yaml from 'js-yaml';
 
@@ -402,10 +404,19 @@ function handoffQueueItem(payload, imported) {
   };
 }
 
-export async function startHandoffs({ rootDir = ROOT, minutes = 30, sessionId, receiver = receiveOnce, runner = runHandoffOnce, verifyFn, adapters } = {}) {
+export async function startHandoffs({
+  rootDir = ROOT, minutes = 30, sessionId,
+  linkedinReceiver = receiveLinkedInOnce, linkedinProcessor = processLinkedInTasks, linkedinExpandTask, linkedinEvaluateJob,
+  receiver = receiveOnce, runner = runHandoffOnce, verifyFn, adapters,
+} = {}) {
+  const linkedinReceiverResult = await linkedinReceiver({ rootDir });
+  const linkedinResult = await linkedinProcessor({
+    rootDir, receiverResult: linkedinReceiverResult, expandTask: linkedinExpandTask, evaluateJob: linkedinEvaluateJob,
+    history: adapters?.history,
+  });
   const receiverResult = await receiver({ rootDir });
   const blockers = (receiverResult?.results || []).filter(result => String(result?.status || '').startsWith('blocked_') || String(result?.status || '').startsWith('conflict_'));
-  const queue = []; const imports = [];
+  const queue = [...(linkedinResult?.queue || [])]; const imports = [];
   for (const filename of receivedHandoffFiles(receiverResult)) {
     let result;
     try { result = await runner({ rootDir, filename, verifyFn }); }
@@ -417,6 +428,7 @@ export async function startHandoffs({ rootDir = ROOT, minutes = 30, sessionId, r
     } catch (error) { blockers.push({ status: 'blocked_queue_mapping', destination_inbox_filename: filename, error: error.message }); }
   }
   const state = createSession(queue, { targetMinutes: minutes, sessionId, allowEmpty: true });
+  state.linkedin_expansion = linkedinResult?.summary || { tasks_received: 0, tasks_completed: 0, jobs_seen: 0, jobs_evaluated: 0, jobs_queued: 0, blockers: [] };
   state.handoff_sync = { receiver_status: receiverResult?.status || 'unknown', queue_additions: imports, blockers };
   await advanceSession(state, adapters || createDefaultAdapters({ rootDir }));
   return state;
@@ -439,18 +451,21 @@ export function sessionSummary(state, now = new Date()) {
     lane: state.current_item?.lane || null,
     next_item: state.next_recommended_item ? `${state.next_recommended_item.company} — ${state.next_recommended_item.title}` : null,
     blocker: state.blocker_reason,
+    linkedin_expansion: state.linkedin_expansion || null,
   };
 }
 
 export function formatStatus(state, now = new Date()) {
   const s = sessionSummary(state, now);
-  return [
+  const lines = [
     `Session: ${s.elapsed_session_minutes} min elapsed / ~${s.target_minutes} min; Ben attention ${s.ben_attention_minutes} min`,
     `Applied: ${s.applied} | Prepared: ${s.prepared_not_submitted} | Skipped: ${s.skipped} | Deferred: ${s.deferred}`,
     `Current: ${s.current || 'none'}`,
     `Lane: ${s.lane || 'none'}`,
     `Next: ${s.next_item || 'none'}`,
-  ].join('\n');
+  ];
+  if (s.linkedin_expansion) lines.push(`LinkedIn expansion: ${s.linkedin_expansion.tasks_completed}/${s.linkedin_expansion.tasks_received} tasks | ${s.linkedin_expansion.jobs_seen} seen | ${s.linkedin_expansion.jobs_evaluated} evaluated | ${s.linkedin_expansion.jobs_queued} queued | ${s.linkedin_expansion.blockers.length} blockers`);
+  return lines.join('\n');
 }
 
 function argValue(argv, flag) {

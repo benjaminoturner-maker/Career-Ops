@@ -90,6 +90,21 @@ test('unsupported candidate claim is rejected against local facts', () => {
   }
 });
 
+test('remote-safe handoff facts support a valid candidate claim', () => {
+  const rootDir = workspace();
+  try {
+    mkdirSync(join(rootDir, 'config'), { recursive: true });
+    writeFileSync(join(rootDir, 'config/handoff-facts.md'), '- Led acquisition evaluation and executive recommendations.\n');
+    const input = payload();
+    input.candidate_claims[0].source = 'config/handoff-facts.md';
+    assert.doesNotThrow(() => validateHandoff(input, { rootDir }));
+    input.candidate_claims[0].evidence = 'Led a fabricated public-company transaction.';
+    assert.throws(() => validateHandoff(input, { rootDir }), /evidence was not found in config\/handoff-facts\.md/);
+  } finally {
+    rmSync(rootDir, { recursive: true, force: true });
+  }
+});
+
 test('candidate claim cannot cite unrelated local evidence', () => {
   const rootDir = workspace();
   try {

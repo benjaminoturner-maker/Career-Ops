@@ -89,10 +89,38 @@ requested_actions:
   tracker_status: Evaluated
 ```
 
-`requisition_id` and `compensation` may be `null` when the authoritative posting exposes neither. Every factual candidate premise must have a `candidate_claims` entry whose evidence appears in its named authoritative source. Allowed sources are `cv.md`, `article-digest.md`, `config/profile.yml`, `config/cv-facts.json`, `modes/_profile.md`, `interview-prep.md`, and `voice-dna.md`.
+`requisition_id` and `compensation` may be `null` when the authoritative posting exposes neither. Every factual candidate premise must have a `candidate_claims` entry whose evidence appears in its named authoritative source. The preferred source for remote ChatGPT handoffs is the committed, privacy-filtered `config/handoff-facts.md`. Other allowed sources remain `cv.md`, `article-digest.md`, `config/profile.yml`, `config/cv-facts.json`, `modes/_profile.md`, `interview-prep.md`, and `voice-dna.md`.
+
+`config/handoff-facts.md` is a deliberately limited snapshot, not a replacement for the local CV/profile. It excludes contact details, home address, family information, financial-account data, compensation history, legal and health information, and unrelated personal facts. Run `node handoff-facts-sync.mjs --check` after changing the local CV. A changed authoritative source makes the check fail as potentially stale; the checker never rewrites the committed snapshot. When the local-only source is absent in a remote checkout, it reports `unverifiable_remote` without treating the snapshot as invalid.
 
 Requirement evidence must appear in the supplied authoritative JD, and `classification_rationale` explains why its strength is contextual rather than inferred from one keyword. `candidate_claims_complete: true` attests that every factual candidate premise used by the evaluation appears in the source-backed claim list.
 
 The importer pauses on prior applications and possible reposts, identity/JD conflicts, unsupported evidence, incomplete material-requirement analysis, unmet hard gates, or a Tier 1/2 result without a concrete Why Ben rationale and posting-supported bridge. It reports the conflict instead of silently rescoring.
 
 Routine imports run only handoff validation and `verify-pipeline.mjs`. Résumé creation separately runs CV synchronization, factual validation, PDF rendering, and visual QA. Full suites, provider checks, portal validation, and update-system coverage belong to development work when the corresponding code or configuration changes.
+
+## LinkedIn alert expansion tasks (separate transport)
+
+LinkedIn "See all jobs" requests use a different GitHub label and schema from trusted final handoffs. An open Issue labeled `career-ops-linkedin-search` carries exactly one fenced YAML task. The receiver writes it immutably to `data/linkedin-search-inbox/` and records separate receipts under `data/linkedin-search-runtime/`. It never invokes the trusted handoff importer and never treats Issue content as an evaluation.
+
+```yaml
+schema_version: 1
+task_id: linkedin-<32 lowercase hex characters>
+source:
+  gmail_message_id: optional-message-id
+  alert_subject: Exact LinkedIn alert subject
+  alert_date: 2026-09-09
+linkedin_search:
+  url: https://www.linkedin.com/jobs/search/?keywords=...
+  keywords: Energy operations
+  location: Denver, Colorado
+  geo_id: "103736294"
+  distance: "50"
+  posted_window: past-week
+  salary_filters: optional
+  work_arrangement_filters: optional
+```
+
+The task ID is `linkedin-` plus the first 32 hex characters of SHA-256 over the canonical JSON representation of the `source` and `linkedin_search` objects. `deriveLinkedInTaskId` in `github-linkedin-search-receiver.mjs` is the reference implementation. Repeated identical Issues are no-ops. An edited Issue, reused deterministic ID, or destination collision fails closed without overwriting the inbox. Issues are handled independently in Issue-number order.
+
+During an application session, Codex opens the exact URL in Ben's authenticated browser, preserves the supplied filters, inspects additional results, and sends each discovered role through normal history/deduplication, liveness, interview-credibility, hard-gate, report/tracker, and factual-integrity controls. Login, CAPTCHA, security-challenge, and unavailable-page outcomes are recorded per task; later tasks continue. No task or expansion step may submit an application.

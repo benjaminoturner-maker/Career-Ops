@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { spawnSync } from 'child_process';
+import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
 import {
   addAttention,
@@ -207,7 +209,7 @@ test('blocked receiver imports later valid handoffs into priority and fast lanes
     const payload = (id, tier, title) => ({ handoff_id: id, job: { company: `${id} Co`, title, url: `https://jobs.example.com/${id}`, requisition_id: id, jd_text: `${title} ${id} description` }, evaluation: { tier } });
     writeFileSync(join(inbox, 'good-1.yml'), yaml.dump(payload('good-1', 'Tier 1', 'Priority Role')));
     writeFileSync(join(inbox, 'good-2.yml'), yaml.dump(payload('good-2', 'Tier 2', 'Fast Role')));
-    const state = await startHandoffs({ rootDir: root, sessionId: 'handoff-start-test', receiver: async () => ({ status: 'blocked', results: [{ status: 'blocked_invalid_issue', issue_number: 1 }, { status: 'received', destination_inbox_filename: 'good-1.yml' }, { status: 'received', destination_inbox_filename: 'good-2.yml' }] }), runner: async ({ filename }) => ({ status: 'completed', reportNumber: filename === 'good-1.yml' ? '21' : '22', report: join(root, 'reports', `${filename}.md`) }), adapters: adapters() });
+    const state = await startHandoffs({ rootDir: root, sessionId: 'handoff-start-test', linkedinReceiver: async () => ({ status: 'idle', results: [] }), linkedinProcessor: async () => ({ queue: [], summary: { tasks_received: 0, tasks_completed: 0, jobs_seen: 0, jobs_evaluated: 0, jobs_queued: 0, blockers: [] } }), receiver: async () => ({ status: 'blocked', results: [{ status: 'blocked_invalid_issue', issue_number: 1 }, { status: 'received', destination_inbox_filename: 'good-1.yml' }, { status: 'received', destination_inbox_filename: 'good-2.yml' }] }), runner: async ({ filename }) => ({ status: 'completed', reportNumber: filename === 'good-1.yml' ? '21' : '22', report: join(root, 'reports', `${filename}.md`) }), adapters: adapters() });
     assert.equal(state.handoff_sync.queue_additions.length, 2);
     assert.equal(state.handoff_sync.blockers[0].status, 'blocked_invalid_issue');
     assert.equal(state.current_item.lane, 'priority');
@@ -217,8 +219,35 @@ test('blocked receiver imports later valid handoffs into priority and fast lanes
 });
 
 test('zero received handoffs returns a clean completed session with blocker provenance', async () => {
-  const state = await startHandoffs({ sessionId: 'empty-handoff-test', receiver: async () => ({ status: 'idle', results: [] }), runner: async () => { throw new Error('must not run'); }, adapters: adapters() });
+  const state = await startHandoffs({ sessionId: 'empty-handoff-test', linkedinReceiver: async () => ({ status: 'idle', results: [] }), linkedinProcessor: async () => ({ queue: [], summary: { tasks_received: 0, tasks_completed: 0, jobs_seen: 0, jobs_evaluated: 0, jobs_queued: 0, blockers: [] } }), receiver: async () => ({ status: 'idle', results: [] }), runner: async () => { throw new Error('must not run'); }, adapters: adapters() });
   assert.equal(state.status, 'complete');
   assert.deepEqual(state.handoff_sync.queue_additions, []);
   assert.deepEqual(state.handoff_sync.blockers, []);
+});
+
+test('session start processes LinkedIn expansion before trusted handoffs and preserves both summaries', async () => {
+  const order = [];
+  const state = await startHandoffs({ sessionId: 'ordered-operational-start',
+    linkedinReceiver: async () => { order.push('linkedin-receive'); return { status: 'received', results: [] }; },
+    linkedinProcessor: async () => { order.push('linkedin-expand'); return { queue: [base('linkedin-credible', { source: 'linkedin-authenticated-expansion' })], summary: { tasks_received: 1, tasks_completed: 1, jobs_seen: 2, jobs_evaluated: 1, jobs_queued: 1, blockers: [] } }; },
+    receiver: async () => { order.push('handoff-receive'); return { status: 'idle', results: [] }; },
+    runner: async () => { throw new Error('must not run'); }, adapters: adapters(),
+  });
+  assert.deepEqual(order, ['linkedin-receive', 'linkedin-expand', 'handoff-receive']);
+  assert.equal(state.linkedin_expansion.jobs_queued, 1);
+  assert.deepEqual(state.handoff_sync.queue_additions, []);
+  assert.equal(state.current_item.id, 'linkedin-credible');
+});
+
+test('manual start --queue remains available and does not submit', () => {
+  const root = mkdtempSync(join(tmpdir(), 'career-ops-manual-session-'));
+  try {
+    const queuePath = join(root, 'queue.json'); const statePath = join(root, 'state.json');
+    writeFileSync(queuePath, JSON.stringify([base('manual', { approved: false, liveness: 'active' })]));
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL('../application-session.mjs', import.meta.url)), 'start', '--queue', queuePath, '--state', statePath], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    const state = JSON.parse(readFileSync(statePath, 'utf8'));
+    assert.equal(state.completed_items.length, 0);
+    assert.equal(state.deferred_items[0].reason, 'requires-evaluation: no trusted approval/handoff');
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
