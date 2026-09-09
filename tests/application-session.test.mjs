@@ -64,6 +64,27 @@ test('hard eligibility blocker stops only that item and later work continues', a
   assert.equal(state.current_item.id, 'later');
 });
 
+test('known company hard-gate outcome defers a changed role and continues', async () => {
+  const disa = base('disa-corpdev', { company: 'DISA Uranium', title: 'Director of Corporate Development' });
+  const blackHills = base('black-hills', { company: 'Black Hills Energy', title: 'Director of Data Center Development' });
+  const state = createSession([disa, blackHills], { sessionId: 'prior-company-hard-gate-session' });
+  const history = [{
+    trackerNumber: 4,
+    company: 'DISA Technologies, Inc.',
+    jobTitle: 'Vice President of Business Development',
+    applicationDate: '2026-07-28',
+    status: 'Rejected',
+    notes: '[prior-company-hard-gate: DISA Uranium | mining/geology depth for exploration evaluation]',
+    jobUrl: '',
+    jobId: '',
+    jdFingerprint: '',
+  }];
+  await advanceSession(state, adapters({ history }));
+  assert.equal(state.deferred_items[0].id, 'disa-corpdev');
+  assert.match(state.deferred_items[0].reason, /prior-company-hard-gate: mining\/geology depth/);
+  assert.equal(state.current_item.id, 'black-hills');
+});
+
 test('high-friction item is deferred and later item continues', async () => {
   const state = createSession([base('workday', { friction: 'high', friction_reason: 'long Workday flow' }), base('fast')], { sessionId: 'friction-session' });
   await advanceSession(state, adapters());

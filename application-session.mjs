@@ -30,10 +30,24 @@ const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/;
 const SAFE_ITEM_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const LANES = new Set(['fast', 'priority', 'defer']);
 const LIVENESS = new Set(['active', 'expired', 'uncertain']);
+const PRIOR_COMPANY_HARD_GATE_RE = /\[prior-company-hard-gate:\s*([^|\]]+)\|\s*([^\]]+)\]/gi;
 
 function iso(now = new Date()) { return now.toISOString(); }
 function round1(value) { return Math.round(value * 10) / 10; }
 function nonempty(value) { return String(value ?? '').trim(); }
+
+export function matchPriorCompanyHardGate(item, history = []) {
+  const company = normalizeCompany(item?.company);
+  if (!company) return null;
+  for (const record of history) {
+    const notes = nonempty(record?.notes);
+    for (const match of notes.matchAll(PRIOR_COMPANY_HARD_GATE_RE)) {
+      if (normalizeCompany(match[1]) !== company) continue;
+      return { record, reason: nonempty(match[2]) || 'known employer-specific hard-gate mismatch' };
+    }
+  }
+  return null;
+}
 
 function safeSessionId(value) {
   const id = nonempty(value) || `session-${new Date().toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`;
@@ -198,6 +212,11 @@ export async function advanceSession(state, adapters = createDefaultAdapters()) 
     }
     const [item] = state.remaining_queue.splice(index, 1);
     const lane = classifyLane(item);
+    const priorHardGate = matchPriorCompanyHardGate(item, adapters.history || []);
+    if (priorHardGate) {
+      state.deferred_items.push(outcome(item, 'defer', `prior-company-hard-gate: ${priorHardGate.reason}`, { prior_application: priorHardGate.record }));
+      continue;
+    }
     const prior = matchPriorApplication({ company: item.company, title: item.title, url: item.url, requisitionId: item.requisition_id, description: item.jd_text }, adapters.history || []);
     if (prior.kind === 'previously_applied') {
       state.skipped_items.push(outcome(item, lane, 'already-applied', { prior_application: prior.record }));
