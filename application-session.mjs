@@ -22,6 +22,7 @@ import { receiveOnce } from './github-handoff-receiver.mjs';
 import { receiveLinkedInOnce } from './github-linkedin-search-receiver.mjs';
 import { processLinkedInTasks, selectNextLinkedInTask } from './linkedin-search-expansion.mjs';
 import { readLinkedInExpansionArtifact, stageLinkedInExpansionArtifact, DEFAULT_LINKEDIN_EXPANSION_RESULT_LIMIT } from './linkedin-expansion-artifact.mjs';
+import { stageLinkedInJDEnrichmentArtifact } from './linkedin-jd-enrichment.mjs';
 import { prepareLinkedInSearchIssue } from './linkedin-search-issue-producer.mjs';
 import { processLinkedInEvaluationArtifact } from './linkedin-evaluation-artifact.mjs';
 import { recoverLinkedInEvaluationTask } from './linkedin-evaluation-artifact.mjs';
@@ -502,6 +503,7 @@ function usage() {
     '  node application-session.mjs start --queue queue.json [--minutes 30] [--session ID] [--state path]',
     '  node application-session.mjs start-handoffs [--minutes 30] [--session ID] [--state path]',
     '  node application-session.mjs process-linkedin-expansion <artifact.json> [--max-jobs N]',
+    '  node application-session.mjs process-linkedin-jd-enrichment <enrichment.json> --source-artifact <artifact.json> [--max-jobs N]',
     '  node application-session.mjs process-linkedin-evaluation <evaluation.json> --source-artifact <artifact.json> [--max-jobs N]',
     '  node application-session.mjs recover-linkedin-evaluation-task --task-id <task_id> --source-artifact <artifact.json> [--max-jobs N]',
     '  node application-session.mjs prepare-linkedin-search-issue --url "<raw LinkedIn URL>" --alert-subject "<subject>" --alert-date YYYY-MM-DD [--gmail-message-id ID] [--keywords text] [--location text] [--title text]',
@@ -576,6 +578,14 @@ async function main() {
     const maxJobs = Number(argValue(argv, '--max-jobs') || DEFAULT_LINKEDIN_EXPANSION_RESULT_LIMIT);
     const artifact = readLinkedInExpansionArtifact(artifactPath, { maxJobs });
     const result = stageLinkedInExpansionArtifact(artifact, { maxJobs });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  } else if (command === 'process-linkedin-jd-enrichment') {
+    const enrichmentPath = argv[1];
+    const sourceArtifactPath = argValue(argv, '--source-artifact');
+    if (!enrichmentPath || !sourceArtifactPath) throw new Error(usage());
+    const maxJobs = Number(argValue(argv, '--max-jobs') || DEFAULT_LINKEDIN_EXPANSION_RESULT_LIMIT);
+    const result = stageLinkedInJDEnrichmentArtifact({ enrichmentPath, sourceArtifactPath, rootDir: ROOT, maxJobs });
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return;
   } else if (command === 'process-linkedin-evaluation') {
