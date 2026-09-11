@@ -38,6 +38,9 @@ function evaluation(source, index = 0, overrides = {}) {
     ...overrides,
   };
 }
+function eligibility(result = 'eligible') {
+  return { eligible: result === 'eligible', result, reasons: [`Primary-search result: ${result}.`], employment_type_assessment: { result: 'full-time', reason: 'Full-time is explicit.' }, career_scope_assessment: { result: 'appropriate', reason: 'Scope is appropriate.' }, compensation_assessment: { result: 'plausible', reason: 'Compensation is plausible.' }, location_assessment: { result: 'compatible', reason: 'Location is compatible.' }, opportunity_quality_assessment: { result: 'acceptable', reason: 'Quality is acceptable.' } };
+}
 
 test('three-job source remains partial until every job is accounted for', async () => {
   const source = setup(); const evaluationPath = join(source.root, 'evaluation.json');
@@ -102,4 +105,29 @@ test('conflicting replay, one-job completion, and insufficient evidence remain f
     const result = await processLinkedInEvaluationArtifact({ evaluationArtifactPath: insufficientPath, sourceArtifactPath: source.sourcePath, rootDir: source.root });
     assert.equal(result.status, 'partial'); assert.equal(result.summary.jobs_evaluated, 1); assert.equal(result.summary.jobs_queued, 0);
   } finally { if (existsSync(source.root)) rmSync(source.root, { recursive: true, force: true }); }
+});
+
+test('contract v2 requires eligibility and prevents ineligible Apply or Consider', () => {
+  const source = setup();
+  try {
+    const valid = evaluation(source, 0, { evaluator: { type: 'codex-agent-supervised', contract_version: 2 }, jobs: [{ ...evaluation(source).jobs[0], primary_search_eligibility: eligibility() }] });
+    const normalized = validateLinkedInEvaluationArtifact(valid, { sourceArtifact: source.source, sourceRaw: readFileSync(source.sourcePath, 'utf8') });
+    assert.equal(normalized.jobs[0].primary_search_eligibility.result, 'eligible');
+    assert.throws(() => validateLinkedInEvaluationArtifact({ ...valid, jobs: [{ ...valid.jobs[0], primary_search_eligibility: eligibility('ineligible'), classification: 'consider' }] }, { sourceArtifact: source.source, sourceRaw: readFileSync(source.sourcePath, 'utf8') }), /must be reject/);
+    assert.throws(() => validateLinkedInEvaluationArtifact({ ...valid, jobs: [{ ...valid.jobs[0], primary_search_eligibility: eligibility('uncertain'), classification: 'apply', processing: { ...valid.jobs[0].processing, approved: true } }] }, { sourceArtifact: source.source, sourceRaw: readFileSync(source.sourcePath, 'utf8') }), /cannot be apply/);
+    assert.throws(() => validateLinkedInEvaluationArtifact({ ...valid, jobs: [{ ...valid.jobs[0], primary_search_eligibility: undefined }] }, { sourceArtifact: source.source, sourceRaw: readFileSync(source.sourcePath, 'utf8') }), /required for evaluator contract v2/);
+  } finally { rmSync(source.root, { recursive: true, force: true }); }
+});
+
+test('v2 evaluation may classify an otherwise eligible no-compensation role as Apply', () => {
+  const source = setup();
+  try {
+    const sourceRaw = readFileSync(source.sourcePath, 'utf8');
+    const baseJob = evaluation(source).jobs[0];
+    const job = { ...baseJob, classification: 'apply', primary_search_eligibility: { ...eligibility(), compensation_assessment: { result: 'unknown', reason: 'Compensation is not disclosed; this remains informational.' }, reasons: ['No primary-search eligibility blocker found.'] }, processing: { ...baseJob.processing, approved: true } };
+    const artifact = { ...evaluation(source), evaluator: { type: 'codex-agent-supervised', contract_version: 2 }, jobs: [job] };
+    const normalized = validateLinkedInEvaluationArtifact(artifact, { sourceArtifact: source.source, sourceRaw });
+    assert.equal(normalized.jobs[0].classification, 'apply');
+    assert.equal(normalized.jobs[0].primary_search_eligibility.compensation_assessment.result, 'unknown');
+  } finally { rmSync(source.root, { recursive: true, force: true }); }
 });

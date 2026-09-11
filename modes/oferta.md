@@ -2,6 +2,12 @@
 
 When the candidate pastes a job (text or URL), ALWAYS deliver the 7 blocks (A-F evaluation + G legitimacy):
 
+## Primary-search eligibility gate
+
+Apply the shared Primary Job-Search Eligibility Gate before detailed fit evaluation and before calculating a score or final classification. Record the structured `primary_search_eligibility` object in machine-readable evaluation artifacts. An explicit ineligible result must be Reject; an uncertain result may be Consider but not Apply.
+
+Missing compensation is neutral: preserve it as unknown, but do not make a role uncertain, Consider, or Reject solely because salary is undisclosed. A full-time role with otherwise acceptable eligibility evidence may still receive Apply. Use compensation as an eligibility concern only when the posting discloses materially unattractive evidence or a genuinely material contradiction.
+
 ## Liveness gate (URL inputs)
 
 When the candidate pastes a **URL** (not JD text), confirm the posting is still live before doing any evaluation. A dead link must never reach Block A — a 404/expired page wastes a full A-G evaluation, report, and PDF on phantom content.

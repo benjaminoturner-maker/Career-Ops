@@ -9,6 +9,7 @@ import yaml from 'js-yaml';
 import { DEFAULT_LINKEDIN_EXPANSION_RESULT_LIMIT, loadImmutableLinkedInTask, readLinkedInExpansionArtifact } from './linkedin-expansion-artifact.mjs';
 import { processLinkedInTasks } from './linkedin-search-expansion.mjs';
 import { writeFileAtomic } from './tracker-utils.mjs';
+import { validatePrimarySearchEligibility } from './primary-search-eligibility.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 export const LINKEDIN_EVALUATION_SCHEMA_VERSION = 1;
@@ -64,6 +65,9 @@ function normalizeJob(value, sourceJobs, index) {
   const evidenceSufficiency = requireEnum(job.evidence_sufficiency, EVIDENCE_RESULTS, `jobs[${index}].evidence_sufficiency`);
   const jdComplete = job.jd_complete === true;
   if (evidenceSufficiency === 'sufficient' && !jdComplete) throw new Error(`jobs[${index}] sufficient evidence requires jd_complete=true`);
+  const eligibility = job.primary_search_eligibility ? validatePrimarySearchEligibility(job.primary_search_eligibility, `jobs[${index}].primary_search_eligibility`) : null;
+  if (eligibility?.result === 'ineligible' && classification !== 'reject') throw new Error(`jobs[${index}] ineligible primary-search role must be reject`);
+  if (eligibility?.result === 'uncertain' && classification === 'apply') throw new Error(`jobs[${index}] uncertain primary-search eligibility cannot be apply`);
   return {
     ...job,
     linkedin_job_id: id,
@@ -85,6 +89,7 @@ function normalizeJob(value, sourceJobs, index) {
     evidence_sufficiency: evidenceSufficiency,
     jd_complete: jdComplete,
     processing: normalizeProcessing(job.processing, classification, index),
+    ...(eligibility ? { primary_search_eligibility: eligibility } : {}),
   };
 }
 
@@ -98,16 +103,19 @@ export function validateLinkedInEvaluationArtifact(artifact, { sourceArtifact, s
   if (!/^\d{4}-\d{2}-\d{2}T/.test(nonempty(artifact.evaluated_at))) throw new Error('evaluated_at must be an ISO timestamp');
   const evaluator = requireObject(artifact.evaluator, 'evaluator');
   if (nonempty(evaluator.type) !== 'codex-agent-supervised') throw new Error('evaluator.type must be codex-agent-supervised');
+  const contractVersion = evaluator.contract_version ?? 1;
+  if (contractVersion !== 1 && contractVersion !== 2) throw new Error('evaluator.contract_version must be 1 or 2');
   const jobs = requireArray(artifact.jobs, 'jobs');
   if (!Number.isInteger(maxJobs) || maxJobs < 1 || jobs.length > maxJobs) throw new Error(`jobs must contain at most ${maxJobs} entries`);
   const seen = new Set();
   const normalizedJobs = jobs.map((job, index) => {
     const normalized = normalizeJob(job, sourceArtifact.jobs, index);
+    if (contractVersion === 2 && !normalized.primary_search_eligibility) throw new Error(`jobs[${index}].primary_search_eligibility is required for evaluator contract v2`);
     if (seen.has(normalized.linkedin_job_id)) throw new Error(`duplicate evaluated LinkedIn job ID ${normalized.linkedin_job_id}`);
     seen.add(normalized.linkedin_job_id);
     return normalized;
   });
-  return { ...artifact, schema_version: LINKEDIN_EVALUATION_SCHEMA_VERSION, source: { ...source, task_id: source.task_id, artifact_sha256: source.artifact_sha256 }, evaluator, evaluated_at: artifact.evaluated_at, jobs: normalizedJobs };
+  return { ...artifact, schema_version: LINKEDIN_EVALUATION_SCHEMA_VERSION, source: { ...source, task_id: source.task_id, artifact_sha256: source.artifact_sha256 }, evaluator: { ...evaluator, contract_version: contractVersion }, evaluated_at: artifact.evaluated_at, jobs: normalizedJobs };
 }
 
 function evaluationStatePath(root, taskId) { return join(root, 'data', 'linkedin-search-runtime', 'evaluation-artifacts', `${taskId}.json`); }

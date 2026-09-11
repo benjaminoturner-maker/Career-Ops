@@ -21,6 +21,7 @@ export function validateApplicationPackageInput({ evaluation, enrichment, jobId,
   if (!text(candidateEvidence)) throw new Error('authoritative candidate evidence is required');
   const job = evaluation.jobs.find(item => text(item.linkedin_job_id) === text(jobId));
   if (!job || job.classification !== 'apply' || job.processing?.approved !== true) throw new Error('only an approved final Apply evaluation can create a package');
+  if (job.primary_search_eligibility && (job.primary_search_eligibility.result !== 'eligible' || job.primary_search_eligibility.eligible !== true)) throw new Error('primary-search eligibility must be eligible before creating a package');
   const enriched = enrichment.jobs.find(item => text(item.linkedin_job_id) === text(jobId));
   if (!enriched || enriched.jd_retrieval_status !== 'complete' || enriched.evaluation_ready !== true || !text(enriched.jd_text)) throw new Error('a complete authoritative JD is required');
   return { job, enriched };

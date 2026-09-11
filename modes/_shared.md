@@ -58,6 +58,14 @@ Every other reference to tier elsewhere in the modes (batch.md, pipeline.md, etc
 
 ## Scoring System
 
+### Primary Job-Search Eligibility Gate (before detailed fit evaluation)
+
+The primary search is for worthwhile full-time primary employment. Before detailed fit analysis, evaluate and record `primary_search_eligibility` with `eligible`, `result` (`eligible`, `ineligible`, or `uncertain`), `reasons`, and the five assessments: `employment_type_assessment`, `career_scope_assessment`, `compensation_assessment`, `location_assessment`, and `opportunity_quality_assessment`.
+
+Treat explicit part-time, temporary, internship, seasonal, fractional, contract/1099-only, commission-only, unpaid, volunteer, clearly short-duration, or clearly junior roles as ineligible. A disclosed compensation range that is clearly inadequate for the primary target may be ineligible; undisclosed compensation is neutral, must remain recorded as unknown, and alone is not a reason for uncertain, Consider, or Reject. A full-time role with otherwise acceptable evidence may still be Apply without disclosed compensation. Denver/Colorado/remote roles are compatible; a required incompatible location is not. Do not infer missing facts. A material uncertainty may proceed as `uncertain` and Consider, but must not become Apply until resolved. A definitive ineligible result must be Reject before an elaborate fit case is written.
+
+Evaluation order is: primary-search eligibility; hard technical/domain gates; functional fit; interview credibility; differentiated case; gaps; career value; final decision. This gate is shared by Gmail, LinkedIn, scanner, ATS, referral, and web discovery.
+
 ### Interview-Credibility Judgment Gate (before any final tier or score)
 
 Discovery and evaluation are separate. A scan, Gmail alert, web result, or ATS result may be retained as **requires evaluation**, but discovery alone must not emit a final Tier 1/Tier 2 classification or numerical fit score.
