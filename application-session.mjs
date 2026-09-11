@@ -25,6 +25,7 @@ import { readLinkedInExpansionArtifact, stageLinkedInExpansionArtifact, DEFAULT_
 import { stageLinkedInJDEnrichmentArtifact } from './linkedin-jd-enrichment.mjs';
 import { prepareLinkedInSearchIssue } from './linkedin-search-issue-producer.mjs';
 import { processLinkedInEvaluationArtifact } from './linkedin-evaluation-artifact.mjs';
+import { buildApplicationPackage } from './application-package.mjs';
 import { recoverLinkedInEvaluationTask } from './linkedin-evaluation-artifact.mjs';
 import { runOnce as runHandoffOnce } from './handoff-runner.mjs';
 import yaml from 'js-yaml';
@@ -505,6 +506,7 @@ function usage() {
     '  node application-session.mjs process-linkedin-expansion <artifact.json> [--max-jobs N]',
     '  node application-session.mjs process-linkedin-jd-enrichment <enrichment.json> --source-artifact <artifact.json> [--max-jobs N]',
     '  node application-session.mjs process-linkedin-evaluation <evaluation.json> --source-artifact <artifact.json> [--max-jobs N]',
+    '  node application-session.mjs prepare-application-package <evaluation.json> --enrichment-artifact <artifact.json> --job-id <linkedin-id> --resume <path> [--cover-letter <path>]',
     '  node application-session.mjs recover-linkedin-evaluation-task --task-id <task_id> --source-artifact <artifact.json> [--max-jobs N]',
     '  node application-session.mjs prepare-linkedin-search-issue --url "<raw LinkedIn URL>" --alert-subject "<subject>" --alert-date YYYY-MM-DD [--gmail-message-id ID] [--keywords text] [--location text] [--title text]',
     '  node application-session.mjs linkedin-expansion-next',
@@ -594,6 +596,19 @@ async function main() {
     if (!evaluationArtifactPath || !sourceArtifactPath) throw new Error(usage());
     const maxJobs = Number(argValue(argv, '--max-jobs') || DEFAULT_LINKEDIN_EXPANSION_RESULT_LIMIT);
     const result = await processLinkedInEvaluationArtifact({ evaluationArtifactPath, sourceArtifactPath, rootDir: ROOT, maxJobs });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  } else if (command === 'prepare-application-package') {
+    const evaluationPath = argv[1];
+    const enrichmentPath = argValue(argv, '--enrichment-artifact');
+    const jobId = argValue(argv, '--job-id');
+    const resumePath = argValue(argv, '--resume');
+    const coverLetterPath = argValue(argv, '--cover-letter') || 'not_needed';
+    if (!evaluationPath || !enrichmentPath || !jobId || !resumePath) throw new Error(usage());
+    const evaluation = JSON.parse(readFileSync(resolve(evaluationPath), 'utf8'));
+    const enrichment = JSON.parse(readFileSync(resolve(enrichmentPath), 'utf8'));
+    const candidateEvidence = readFileSync(resolve('cv.md'), 'utf8');
+    const result = buildApplicationPackage({ evaluation: evaluation.artifact || evaluation, enrichment, jobId, resumePath, coverLetterPath, candidateEvidence });
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return;
   } else if (command === 'recover-linkedin-evaluation-task') {

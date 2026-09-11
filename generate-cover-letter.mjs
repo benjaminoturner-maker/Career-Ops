@@ -147,7 +147,12 @@ export function buildHtml(payload, templatePath) {
     "{{GREETING_BLOCK}}": greetingBlock,
     "{{OPENING}}": escapeHtml(letter.opening),
     "{{PROFILE_INTRO}}": escapeHtml(letter.profile_intro),
-    "{{ACHIEVEMENTS_BLOCK}}": buildAchievementsBlock(letter.achievements),
+    // Finished executive letters are prose-first. Resume-style bullets remain
+    // available for deliberately structured letters, but must be explicit so
+    // they cannot be appended mechanically to a completed narrative.
+    "{{ACHIEVEMENTS_BLOCK}}": letter.include_achievements === true
+      ? buildAchievementsBlock(letter.achievements)
+      : "",
     "{{PROBLEMS_BLOCK}}": problemsBlock,
     "{{CLOSING_BLOCK}}": closingBlock,
     "{{LANGUAGE_CLOSING_BLOCK}}": languageClosingBlock,
@@ -159,7 +164,12 @@ export function buildHtml(payload, templatePath) {
   // split/join) ensures a substituted value that itself contains a {{TOKEN}}
   // sequence is left literal instead of being re-interpreted as a placeholder.
   // Tokens with no entry in the map are left untouched.
-  return html.replace(/\{\{[A-Z_]+\}\}/g, (token) => replacements[token] ?? token);
+  // Keep the literal engineer-MBA phrase together so Chromium's PDF text
+  // layer does not emit a malformed character when the hyphenated word wraps.
+  return html.replace(/\{\{[A-Z_]+\}\}/g, (token) => replacements[token] ?? token)
+    .replace(/engineer-MBA/g, '<span style="white-space:nowrap">engineer-MBA</span>')
+    .replace(/capital-allocation/g, '<span style="white-space:nowrap">capital-allocation</span>')
+    .replace(/technical-commercial/g, '<span style="white-space:nowrap">technical-commercial</span>');
 }
 
 async function main() {
