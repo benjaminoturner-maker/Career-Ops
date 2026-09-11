@@ -60,6 +60,18 @@ node application-session.mjs start-handoffs --minutes 30
 
 The controller receives LinkedIn tasks before trusted handoffs. The CLI controller itself deliberately has no browser driver: Codex supplies the authenticated-browser expansion and normal evaluation adapters while following this mode. Without that adapter, the task is retained with a `blocked_browser` result and handoff synchronization still continues. LinkedIn results are reported under `linkedin_expansion`; existing receiver/import blockers remain in `handoff_sync`. One bad LinkedIn task, handoff Issue, discovered job, or import cannot starve later valid work. If no queue items are produced, the command returns a normal completed empty session.
 
+### Agent-mediated LinkedIn expansion
+
+The authenticated browser step is performed by the Codex agent through the built-in browser; repository Node code cannot call that browser directly. After extraction, the agent writes a normalized JSON artifact and stages it with:
+
+```bash
+node application-session.mjs process-linkedin-expansion <artifact.json> [--max-jobs 25]
+```
+
+The artifact must reference an immutable inbox task and preserve its exact search URL. The CLI validates and stages the artifact; the exported `processLinkedInExpansionArtifact()` function is the agent-to-pipeline boundary and calls `processLinkedInTasks()` with the normal evaluation adapter supplied by the Codex host. The default limit is 25 result cards per task and can be overridden with `--max-jobs`. Replaying identical content is a no-op; conflicting content for a staged or completed task fails closed. A blocked artifact remains resumable and never marks the task completed.
+
+Authentication is user-managed. Ben must personally complete any LinkedIn login, CAPTCHA, verification, or security challenge. The agent must never click Easy Apply, Apply, Send, or other application controls. This flow remains separate from trusted `career-ops-handoff` imports.
+
 For a controlled/manual queue, use:
 
 ```bash

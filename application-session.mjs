@@ -20,7 +20,11 @@ import { normalizeApplicationAnswersSnapshot, upsertApplicationAnswersSection } 
 import { seedFollowup } from './followup-seed.mjs';
 import { receiveOnce } from './github-handoff-receiver.mjs';
 import { receiveLinkedInOnce } from './github-linkedin-search-receiver.mjs';
-import { processLinkedInTasks } from './linkedin-search-expansion.mjs';
+import { processLinkedInTasks, selectNextLinkedInTask } from './linkedin-search-expansion.mjs';
+import { readLinkedInExpansionArtifact, stageLinkedInExpansionArtifact, DEFAULT_LINKEDIN_EXPANSION_RESULT_LIMIT } from './linkedin-expansion-artifact.mjs';
+import { prepareLinkedInSearchIssue } from './linkedin-search-issue-producer.mjs';
+import { processLinkedInEvaluationArtifact } from './linkedin-evaluation-artifact.mjs';
+import { recoverLinkedInEvaluationTask } from './linkedin-evaluation-artifact.mjs';
 import { runOnce as runHandoffOnce } from './handoff-runner.mjs';
 import yaml from 'js-yaml';
 
@@ -497,6 +501,11 @@ function usage() {
     'Usage:',
     '  node application-session.mjs start --queue queue.json [--minutes 30] [--session ID] [--state path]',
     '  node application-session.mjs start-handoffs [--minutes 30] [--session ID] [--state path]',
+    '  node application-session.mjs process-linkedin-expansion <artifact.json> [--max-jobs N]',
+    '  node application-session.mjs process-linkedin-evaluation <evaluation.json> --source-artifact <artifact.json> [--max-jobs N]',
+    '  node application-session.mjs recover-linkedin-evaluation-task --task-id <task_id> --source-artifact <artifact.json> [--max-jobs N]',
+    '  node application-session.mjs prepare-linkedin-search-issue --url "<raw LinkedIn URL>" --alert-subject "<subject>" --alert-date YYYY-MM-DD [--gmail-message-id ID] [--keywords text] [--location text] [--title text]',
+    '  node application-session.mjs linkedin-expansion-next',
     '  node application-session.mjs resume --state path',
     '  node application-session.mjs prepared --state path',
     '  node application-session.mjs confirm-submitted --state path --confirmed-by-ben --date YYYY-MM-DD [--provenance text] [--attention-minutes N] [--answers answers.json]',
@@ -504,6 +513,46 @@ function usage() {
     '  node application-session.mjs attention --state path --minutes N',
     '  node application-session.mjs summary --state path',
   ].join('\n');
+}
+
+function optionalArg(argv, flag) {
+  const value = argValue(argv, flag);
+  return value == null || !nonempty(value) ? undefined : value;
+}
+
+function writePreparedIssueFile(path, content) {
+  if (existsSync(path)) {
+    if (readFileSync(path, 'utf8') !== content) throw new Error(`prepared Issue output already exists with different content: ${path}`);
+    return;
+  }
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileAtomic(path, content);
+}
+
+export function prepareLinkedInSearchIssueCli(argv, { rootDir = ROOT } = {}) {
+  const url = argValue(argv, '--url');
+  const alertSubject = argValue(argv, '--alert-subject');
+  const alertDate = argValue(argv, '--alert-date');
+  if (!url || !alertSubject || !alertDate) throw new Error('prepare-linkedin-search-issue requires --url, --alert-subject, and --alert-date');
+  const keywords = optionalArg(argv, '--keywords');
+  const location = optionalArg(argv, '--location');
+  const title = optionalArg(argv, '--title') || `LinkedIn search expansion: ${nonempty(alertSubject)}`;
+  const source = { alert_subject: alertSubject, alert_date: alertDate };
+  const gmailMessageId = optionalArg(argv, '--gmail-message-id');
+  if (gmailMessageId) source.gmail_message_id = gmailMessageId;
+  const linkedinSearch = { url };
+  for (const [flag, key] of [['--keywords', 'keywords'], ['--location', 'location'], ['--geo-id', 'geo_id'], ['--distance', 'distance'], ['--posted-window', 'posted_window']]) {
+    const value = optionalArg(argv, flag);
+    if (value) linkedinSearch[key] = value;
+  }
+  const prepared = prepareLinkedInSearchIssue({ source, linkedin_search: linkedinSearch });
+  const runtimeDir = join(resolve(rootDir), 'data', 'linkedin-search-runtime', 'prepared-issues');
+  const bodyPath = join(runtimeDir, `${prepared.task.task_id}.body.yml`);
+  const metadataPath = join(runtimeDir, `${prepared.task.task_id}.json`);
+  const metadata = { label: prepared.label, title, task_id: prepared.task.task_id, body_path: bodyPath, body: prepared.body };
+  writePreparedIssueFile(bodyPath, prepared.body);
+  writePreparedIssueFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
+  return metadata;
 }
 
 async function main() {
@@ -521,6 +570,39 @@ async function main() {
   } else if (command === 'start-handoffs') {
     state = await startHandoffs({ minutes: argValue(argv, '--minutes') || 30, sessionId: argValue(argv, '--session') || undefined });
     statePath = statePath || defaultStatePath(state.session_id);
+  } else if (command === 'process-linkedin-expansion') {
+    const artifactPath = argv[1];
+    if (!artifactPath) throw new Error(usage());
+    const maxJobs = Number(argValue(argv, '--max-jobs') || DEFAULT_LINKEDIN_EXPANSION_RESULT_LIMIT);
+    const artifact = readLinkedInExpansionArtifact(artifactPath, { maxJobs });
+    const result = stageLinkedInExpansionArtifact(artifact, { maxJobs });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  } else if (command === 'process-linkedin-evaluation') {
+    const evaluationArtifactPath = argv[1];
+    const sourceArtifactPath = argValue(argv, '--source-artifact');
+    if (!evaluationArtifactPath || !sourceArtifactPath) throw new Error(usage());
+    const maxJobs = Number(argValue(argv, '--max-jobs') || DEFAULT_LINKEDIN_EXPANSION_RESULT_LIMIT);
+    const result = await processLinkedInEvaluationArtifact({ evaluationArtifactPath, sourceArtifactPath, rootDir: ROOT, maxJobs });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  } else if (command === 'recover-linkedin-evaluation-task') {
+    const taskId = argValue(argv, '--task-id');
+    const sourceArtifactPath = argValue(argv, '--source-artifact');
+    if (!taskId || !sourceArtifactPath) throw new Error(usage());
+    const maxJobs = Number(argValue(argv, '--max-jobs') || DEFAULT_LINKEDIN_EXPANSION_RESULT_LIMIT);
+    const result = recoverLinkedInEvaluationTask({ taskId, sourceArtifactPath, rootDir: ROOT, maxJobs });
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  } else if (command === 'prepare-linkedin-search-issue') {
+    const prepared = prepareLinkedInSearchIssueCli(argv.slice(1));
+    process.stdout.write(`${JSON.stringify(prepared, null, 2)}\n`);
+    return;
+  } else if (command === 'linkedin-expansion-next') {
+    const received = receiveLinkedInOnce({ rootDir: ROOT });
+    const next = selectNextLinkedInTask({ rootDir: ROOT, receiverResult: received });
+    process.stdout.write(`${JSON.stringify({ status: received.status === 'github_error' ? 'github_error' : next ? 'pending' : 'idle', receiver: received, next }, null, 2)}\n`);
+    return;
   } else {
     if (!statePath) throw new Error(usage());
     state = loadSession(statePath);

@@ -53,6 +53,8 @@
     "handoff:facts:check": "node handoff-facts-sync.mjs --check",
     "handoff:receive": "node github-handoff-receiver.mjs --once",
     "linkedin:receive": "node github-linkedin-search-receiver.mjs --once",
+    "linkedin:process": "node application-session.mjs process-linkedin-expansion",
+    "linkedin:next": "node application-session.mjs linkedin-expansion-next",
     "linkedin:expand:test": "node --test tests/linkedin-search-expansion.test.mjs",
     "handoff:run": "node handoff-runner.mjs --once",
     "handoff:run:test": "node --test tests/handoff-runner.test.mjs",
