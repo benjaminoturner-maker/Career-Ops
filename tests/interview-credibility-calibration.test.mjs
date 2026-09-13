@@ -134,6 +134,24 @@ test('high-growth SaaS BizOps hard gate blocks Tier 1 and Tier 2', () => {
   assert.ok(result.fitScore < 3.5);
 });
 
+test('human-reviewed Xcel and WM boundary cases allow Apply when the gap is conventional rather than a hard gate', () => {
+  for (const id of ['human-review-xcel-corporate-development', 'human-review-wm-m-and-a']) {
+    const fixture = byId(id);
+    assert.equal(fixture.expected_regression.expected_classification, 'Apply');
+    assert.equal(fixture.expected_regression.conventional_candidate_disadvantage_is_not_automatic_failure, true);
+    const result = applyInterviewCredibilityGate({
+      stage: 'evaluated', sourceChannel: 'linkedin', proposedTier: 'Tier 2', fitScore: 4.1,
+      requirementStrength: fixture.requirement_strength,
+      hiringIntent: fixture.scenario.hiring_intent,
+      candidatePoolDisadvantage: fixture.candidate_pool_disadvantage,
+      whyBen: fixture.why_ben,
+      roleSpecificBridgeEvidence: fixture.scenario.bridge,
+    });
+    assert.equal(result.topTierPermitted, true);
+    assert.equal(result.finalTier, 'Tier 2');
+  }
+});
+
 test('scan-only discovery retains a lead without final tier or score', () => {
   const result = applyInterviewCredibilityGate({
     stage: 'discovery',

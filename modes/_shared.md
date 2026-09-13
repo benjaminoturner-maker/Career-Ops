@@ -80,6 +80,8 @@ Before any mode emits a final tier or numerical fit score, it must explicitly re
 
 Apply the common policy in `judgment-policy.mjs`. Tier 1 or Tier 2 is permitted only when no unmet hard gate exists and both a concrete Why Ben rationale and role-supported bridge exist. Generic transferable skills or responsibility overlap are insufficient. Apply this gate before interpreting the ordinary 1-5 scoring bands below; a raw responsibility-overlap score cannot override the gate.
 
+Do not treat a conventional-candidate advantage as an unmet hard gate or as automatic interview-credibility failure. When no material hard gate exists, the candidate substantially satisfies the stated requirements, the role has worthwhile career value, and a concrete evidence-supported Why Ben bridge exists, a role may be Apply even when more conventional candidates have more repetitions or cleaner title histories. Record that disadvantage and any real gaps explicitly; Apply still requires genuine interview credibility and worthwhile primary-search compatibility.
+
 The source channel never changes the gate. Gmail-, LinkedIn-, scanner-, ATS-, referral-, and web-discovered roles all use the same policy when final tiering occurs.
 
 The evaluation uses 6 blocks (A-F) with a global score of 1-5:

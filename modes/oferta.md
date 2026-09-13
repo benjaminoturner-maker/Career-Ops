@@ -62,7 +62,7 @@ Report:
 - **Why Ben:** why this employer would interview Ben instead of candidates with both the function and requested domain experience;
 - the exact posting evidence for any role-specific bridge.
 
-If there is no concrete Why Ben rationale and posting-supported bridge, Tier 1 and Tier 2 are prohibited even when responsibility overlap is strong. An unmet hard gate normally means Reject. A strong preference without a defensible bridge is Tier 3 at best. Do not call a role Tier 1/Tier 2 or publish a 4.0+ fit score first and apply this gate afterward.
+If there is no concrete Why Ben rationale and posting-supported bridge, Tier 1 and Tier 2 are prohibited even when responsibility overlap is strong. An unmet hard gate normally means Reject. A strong preference without a defensible bridge is Tier 3 at best. Do not call a role Tier 1/Tier 2 or publish a 4.0+ fit score first and apply this gate afterward. A conventional-candidate advantage, such as more repetitions or a cleaner title history, is a documented concern rather than an automatic hard-gate failure when the stated requirements are substantially met and a differentiated role-specific bridge remains credible.
 
 ## Block A — Role Summary
 

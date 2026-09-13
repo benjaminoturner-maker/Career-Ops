@@ -120,3 +120,31 @@ benchmarks:
     expected_regression:
       expected_tier: "Reject"
       attractive_title_or_comp_does_not_override_gate: true
+
+  - id: human-review-xcel-corporate-development
+    name: "Xcel Energy Corporate Development Director boundary case"
+    scenario:
+      functional_fit: "Acquisitions, divestitures, valuation, diligence, strategy, energy, and executive communication overlap"
+      domain_requirement: "Energy-sector corporate development; transaction-specialist depth preferred"
+      hiring_intent: "Energy corporate-development leader"
+      bridge: "Operator-side energy A&D, valuation, diligence, Board/investor, and technical-business judgment are directly useful"
+    requirement_strength: "soft preference"
+    candidate_pool_disadvantage: "Conventional corporate-development candidates may have more dedicated transaction repetition"
+    why_ben: "Energy operator with A&D evaluation, valuation, diligence, Board/investor, and technical-commercial leadership"
+    expected_regression:
+      expected_classification: "Apply"
+      conventional_candidate_disadvantage_is_not_automatic_failure: true
+
+  - id: human-review-wm-m-and-a
+    name: "WM Director M&A Transactions boundary case"
+    scenario:
+      functional_fit: "LOI-to-close diligence, data rooms, valuation, transaction coordination, exits, and integration overlap"
+      domain_requirement: "Corporate Business Development transaction execution; large-enterprise repetition preferred"
+      hiring_intent: "Corporate-development transaction leader"
+      bridge: "Operator-side energy transaction diligence and post-close operating judgment are directly useful"
+    requirement_strength: "soft preference"
+    candidate_pool_disadvantage: "Conventional large-enterprise M&A candidates may have more transaction repetitions"
+    why_ben: "Energy operator with acquisition/divestiture evaluation, diligence, data rooms, negotiations, exits, and Board/investor communication"
+    expected_regression:
+      expected_classification: "Apply"
+      conventional_candidate_disadvantage_is_not_automatic_failure: true
